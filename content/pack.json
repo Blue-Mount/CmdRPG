@@ -1,0 +1,74 @@
+{
+  "version": "0.1.0-slice",
+  "rules_version": "0.1.0-provisional",
+  "save_version": 1,
+  "classes": {
+    "fighter": {
+      "name": "战士", "subclass": "战斗大师（3级解锁，未实装）", "level": 1,
+      "stats": {"str": 16, "dex": 12, "con": 14, "int": 10, "wis": 13, "cha": 10},
+      "hp": 12, "ac": 18, "speed": 9, "attack_stat": "str", "save_proficiencies": ["str", "con"], "weapon": "longsword",
+      "abilities": ["second_wind"], "spell_stat": null, "slots": {}, "resources": {"second_wind": 1}
+    },
+    "monk": {
+      "name": "武僧", "subclass": "散打宗（3级解锁，未实装）", "level": 1,
+      "stats": {"str": 10, "dex": 16, "con": 14, "int": 8, "wis": 16, "cha": 10},
+      "hp": 10, "ac": 16, "speed": 9, "attack_stat": "dex", "save_proficiencies": ["str", "dex"], "weapon": "monk_fists",
+      "abilities": ["unarmed_strike"], "spell_stat": null, "slots": {}, "resources": {}
+    },
+    "wizard": {
+      "name": "法师", "subclass": "塑能学派（2级解锁，未实装）", "level": 1,
+      "stats": {"str": 8, "dex": 14, "con": 14, "int": 16, "wis": 12, "cha": 12},
+      "hp": 8, "ac": 12, "speed": 9, "attack_stat": "dex", "save_proficiencies": ["int", "wis"], "weapon": "dagger",
+      "abilities": ["fire_bolt", "magic_missile", "mage_armor"], "spell_stat": "int", "slots": {"1": 2}, "resources": {}
+    },
+    "cleric": {
+      "name": "牧师", "subclass": "生命领域", "level": 1,
+      "stats": {"str": 14, "dex": 10, "con": 14, "int": 8, "wis": 16, "cha": 12},
+      "hp": 10, "ac": 16, "speed": 9, "attack_stat": "str", "save_proficiencies": ["wis", "cha"], "weapon": "mace",
+      "abilities": ["sacred_flame", "healing_word", "cure_wounds", "bless"], "spell_stat": "wis", "slots": {"1": 2}, "resources": {}
+    }
+  },
+  "abilities": {
+    "second_wind": {"name": "回气", "effect": "second_wind", "cost": "bonus", "range": 0, "level": 0, "description": "恢复自身1d10+战士等级生命；消耗一次回气。短休恢复。"},
+    "unarmed_strike": {"name": "武艺：附赠徒手打击", "effect": "unarmed_strike", "cost": "bonus", "range": 1.5, "level": 0, "description": "本轮已用攻击动作后，可附赠进行一次徒手攻击；1d4+敏捷钝击。1级无气点。"},
+    "fire_bolt": {"name": "火焰箭", "effect": "fire_bolt", "cost": "action", "range": 18, "level": 0, "description": "对一个可见敌人作智力法术攻击，命中造成1d10火焰伤害。"},
+    "magic_missile": {"name": "魔法飞弹", "effect": "magic_missile", "cost": "action", "range": 18, "level": 1, "description": "三枚飞弹自动命中，每枚1d4+1力场伤害。切片限定全部飞弹指向同一敌人；不支持拆分目标。"},
+    "mage_armor": {"name": "法师护甲", "effect": "mage_armor", "cost": "action", "range": 1.5, "level": 1, "description": "切片合法目标为无甲法师或武僧；AC取原防御与13+敏捷修正中较高值，持续至本场结束。此合并公式暂待BG3实测。"},
+    "sacred_flame": {"name": "圣火术", "effect": "sacred_flame", "cost": "action", "range": 18, "level": 0, "description": "一个可见敌人作敏捷豁免（DC=8+熟练+感知）；失败承受1d8光耀伤害，成功无伤害。"},
+    "healing_word": {"name": "治愈真言", "effect": "healing_word", "cost": "bonus", "range": 18, "level": 1, "description": "恢复一个可见队友1d4+感知生命，生命领域额外加2+消耗法术位环级。已死亡者无效。"},
+    "cure_wounds": {"name": "疗伤术", "effect": "cure_wounds", "cost": "action", "range": 1.5, "level": 1, "description": "恢复一个近邻队友1d8+感知生命，生命领域额外加2+消耗法术位环级。已死亡者无效。"},
+    "bless": {"name": "祝福术", "effect": "bless", "cost": "action", "range": 9, "level": 1, "concentration": true, "description": "选择至多三个不同可见队友（可含自身）；攻击检定与豁免加1d4，专注维持至多10轮。重新施放替换旧专注。"}
+  },
+  "items": {
+    "longsword": {"name": "前哨长剑", "slot": "main_hand", "kind": "weapon", "dice": "1d8", "damage_type": "slashing", "description": "战士起始武器，固定单手使用；换装与双手变式未开放。"},
+    "monk_fists": {"name": "徒手（武艺）", "slot": "main_hand", "kind": "weapon", "dice": "1d4", "damage_type": "bludgeoning", "description": "武僧无甲、无盾；以敏捷进行徒手攻击。作为统一攻击数据记录，不是可掉落装备。"},
+    "dagger": {"name": "旅用匕首", "slot": "main_hand", "kind": "weapon", "dice": "1d4", "damage_type": "piercing", "description": "法师起始近战武器，使用敏捷；投掷未开放。"},
+    "mace": {"name": "守营钉头锤", "slot": "main_hand", "kind": "weapon", "dice": "1d6", "damage_type": "bludgeoning", "description": "牧师起始武器，使用力量进行近战攻击。"},
+    "healing_potion": {"name": "治疗药水", "slot": "consumable", "kind": "potion", "dice": "2d4+2", "damage_type": "healing", "description": "切片每人两瓶，自饮消耗附赠动作并恢复2d4+2生命；不支持投掷或喂食。"}
+  },
+  "enemies": {
+    "sentry": {"name": "裂隙前哨守卫", "hp": 13, "ac": 13, "stats": {"str": 14, "dex": 12, "con": 12, "int": 8, "wis": 10, "cha": 8}, "speed": 9, "range": 1.5, "dice": "1d6", "damage_type": "slashing", "role": "melee", "attack_stat": "str"},
+    "raider": {"name": "废营突袭者", "hp": 10, "ac": 12, "stats": {"str": 12, "dex": 14, "con": 10, "int": 8, "wis": 10, "cha": 8}, "speed": 9, "range": 1.5, "dice": "1d4", "damage_type": "piercing", "role": "melee", "attack_stat": "str"},
+    "lookout": {"name": "石阶瞭望手", "hp": 9, "ac": 12, "stats": {"str": 10, "dex": 14, "con": 10, "int": 10, "wis": 12, "cha": 8}, "speed": 9, "range": 18, "dice": "1d6", "damage_type": "piercing", "role": "ranged", "attack_stat": "dex"}
+  },
+  "map": {
+    "width": 16, "height": 12, "cell_size": 1.5,
+    "walls": ["F2", "F3", "F4", "F5", "F7", "F8", "F9", "F10"],
+    "heights": {"K3": 1.5, "K4": 1.5, "L3": 3, "L4": 3, "M3": 3, "M4": 3},
+    "difficult": ["D7", "E7", "G7", "G8"],
+    "hazards": {"H9": {"damage": 2, "description": "燃烧碎屑：每次进入该格造成2点火焰伤害。"}, "I9": {"damage": 2, "description": "燃烧碎屑：每次进入该格造成2点火焰伤害。"}},
+    "landmarks": [
+      {"position": "B6", "name": "西侧集结点", "description": "四人从门外进入；沿第6行可直接望见门洞后的守卫。"},
+      {"position": "F6", "name": "断墙门洞", "description": "东西两侧之间的中央通路，墙端也可绕行。"},
+      {"position": "K4", "name": "瞭望台石阶", "description": "1.5米高的过渡台阶，通往3米高的L4瞭望台。"},
+      {"position": "L4", "name": "东侧瞭望台", "description": "射手据守的小平台，可从石阶接近。"},
+      {"position": "M10", "name": "内营入口", "description": "本场只以击败三名敌人为胜利条件；入口用于关键通路检查。"}
+    ]
+  },
+  "encounter": {
+    "name": "裂隙要塞：前哨门洞",
+    "description": "断墙将废营分成两半，瞭望手占据东侧石阶。击败三名守军，试验移动、火力与治疗配合。",
+    "party_spawns": ["B6", "B7", "B8", "B9"],
+    "enemies": [{"id": "E1", "prototype": "sentry", "position": "H6"}, {"id": "E2", "prototype": "raider", "position": "J8"}, {"id": "E3", "prototype": "lookout", "position": "L4"}]
+  }
+}
