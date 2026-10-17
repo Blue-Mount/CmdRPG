@@ -1,0 +1,1062 @@
+{
+  "version": 1,
+  "classes": {
+    "fighter": {
+      "1": {
+        "level": 1,
+        "stats": {
+          "str": 16,
+          "dex": 12,
+          "con": 14,
+          "int": 10,
+          "wis": 13,
+          "cha": 10
+        },
+        "hp": 12,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "second_wind": 1
+        },
+        "abilities": [
+          "second_wind"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "con"
+        ],
+        "equipment": {
+          "main_hand": "longsword",
+          "armor": "chain_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "martial",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "defence"
+        ]
+      },
+      "2": {
+        "level": 2,
+        "stats": {
+          "str": 16,
+          "dex": 12,
+          "con": 14,
+          "int": 10,
+          "wis": 13,
+          "cha": 10
+        },
+        "hp": 20,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "second_wind": 1,
+          "action_surge": 1
+        },
+        "abilities": [
+          "second_wind",
+          "action_surge"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "con"
+        ],
+        "equipment": {
+          "main_hand": "longsword",
+          "armor": "chain_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "martial",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "defence"
+        ]
+      },
+      "3": {
+        "level": 3,
+        "stats": {
+          "str": 16,
+          "dex": 12,
+          "con": 14,
+          "int": 10,
+          "wis": 13,
+          "cha": 10
+        },
+        "hp": 28,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "second_wind": 1,
+          "action_surge": 1,
+          "superiority": 4
+        },
+        "abilities": [
+          "second_wind",
+          "action_surge",
+          "rally"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "con"
+        ],
+        "equipment": {
+          "main_hand": "longsword",
+          "armor": "chain_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "martial",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "defence"
+        ]
+      },
+      "4": {
+        "level": 4,
+        "stats": {
+          "str": 18,
+          "dex": 12,
+          "con": 14,
+          "int": 10,
+          "wis": 13,
+          "cha": 10
+        },
+        "hp": 36,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "second_wind": 1,
+          "action_surge": 1,
+          "superiority": 4
+        },
+        "abilities": [
+          "second_wind",
+          "action_surge",
+          "rally"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "con"
+        ],
+        "equipment": {
+          "main_hand": "longsword",
+          "armor": "chain_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "martial",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "defence"
+        ]
+      },
+      "5": {
+        "level": 5,
+        "stats": {
+          "str": 18,
+          "dex": 12,
+          "con": 14,
+          "int": 10,
+          "wis": 13,
+          "cha": 10
+        },
+        "hp": 44,
+        "proficiency": 3,
+        "slots": {},
+        "resources": {
+          "second_wind": 1,
+          "action_surge": 1,
+          "superiority": 4
+        },
+        "abilities": [
+          "second_wind",
+          "action_surge",
+          "rally"
+        ],
+        "extra_attack": 1,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "con"
+        ],
+        "equipment": {
+          "main_hand": "longsword",
+          "armor": "chain_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "martial",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "defence"
+        ]
+      }
+    },
+    "monk": {
+      "1": {
+        "level": 1,
+        "stats": {
+          "str": 10,
+          "dex": 16,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 10
+        },
+        "hp": 10,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "ki": 2
+        },
+        "abilities": [
+          "unarmed_strike",
+          "flurry",
+          "patient_defence"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "dex"
+        ],
+        "equipment": {
+          "main_hand": "monk_fists",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "simple"
+        ],
+        "speed": 9,
+        "passives": [
+          "unarmoured_defence",
+          "martial_arts"
+        ]
+      },
+      "2": {
+        "level": 2,
+        "stats": {
+          "str": 10,
+          "dex": 16,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 10
+        },
+        "hp": 17,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "ki": 3
+        },
+        "abilities": [
+          "unarmed_strike",
+          "flurry",
+          "patient_defence"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "dex"
+        ],
+        "equipment": {
+          "main_hand": "monk_fists",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "simple"
+        ],
+        "speed": 12,
+        "passives": [
+          "unarmoured_defence",
+          "martial_arts"
+        ]
+      },
+      "3": {
+        "level": 3,
+        "stats": {
+          "str": 10,
+          "dex": 16,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 10
+        },
+        "hp": 24,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "ki": 4
+        },
+        "abilities": [
+          "unarmed_strike",
+          "flurry",
+          "patient_defence"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "dex"
+        ],
+        "equipment": {
+          "main_hand": "monk_fists",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "simple"
+        ],
+        "speed": 12,
+        "passives": [
+          "unarmoured_defence",
+          "martial_arts"
+        ]
+      },
+      "4": {
+        "level": 4,
+        "stats": {
+          "str": 10,
+          "dex": 18,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 10
+        },
+        "hp": 31,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {
+          "ki": 5
+        },
+        "abilities": [
+          "unarmed_strike",
+          "flurry",
+          "patient_defence"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "dex"
+        ],
+        "equipment": {
+          "main_hand": "monk_fists",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "simple"
+        ],
+        "speed": 12,
+        "passives": [
+          "unarmoured_defence",
+          "martial_arts"
+        ]
+      },
+      "5": {
+        "level": 5,
+        "stats": {
+          "str": 10,
+          "dex": 18,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 10
+        },
+        "hp": 38,
+        "proficiency": 3,
+        "slots": {},
+        "resources": {
+          "ki": 6
+        },
+        "abilities": [
+          "unarmed_strike",
+          "flurry",
+          "patient_defence"
+        ],
+        "extra_attack": 1,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "str",
+          "dex"
+        ],
+        "equipment": {
+          "main_hand": "monk_fists",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "simple"
+        ],
+        "speed": 12,
+        "passives": [
+          "unarmoured_defence",
+          "martial_arts"
+        ]
+      }
+    },
+    "wizard": {
+      "1": {
+        "level": 1,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 16,
+          "wis": 12,
+          "cha": 12
+        },
+        "hp": 8,
+        "proficiency": 2,
+        "slots": {
+          "1": 2
+        },
+        "resources": {
+          "arcane_recovery": 1
+        },
+        "abilities": [
+          "fire_bolt",
+          "magic_missile",
+          "mage_armor"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "int",
+        "save_proficiencies": [
+          "int",
+          "wis"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "dagger",
+          "staff"
+        ],
+        "speed": 9,
+        "passives": []
+      },
+      "2": {
+        "level": 2,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 16,
+          "wis": 12,
+          "cha": 12
+        },
+        "hp": 14,
+        "proficiency": 2,
+        "slots": {
+          "1": 3
+        },
+        "resources": {
+          "arcane_recovery": 1
+        },
+        "abilities": [
+          "fire_bolt",
+          "magic_missile",
+          "mage_armor"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "int",
+        "save_proficiencies": [
+          "int",
+          "wis"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "dagger",
+          "staff"
+        ],
+        "speed": 9,
+        "passives": [
+          "sculpt_spells"
+        ]
+      },
+      "3": {
+        "level": 3,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 16,
+          "wis": 12,
+          "cha": 12
+        },
+        "hp": 20,
+        "proficiency": 2,
+        "slots": {
+          "1": 4,
+          "2": 2
+        },
+        "resources": {
+          "arcane_recovery": 2
+        },
+        "abilities": [
+          "fire_bolt",
+          "magic_missile",
+          "mage_armor",
+          "scorching_ray"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "int",
+        "save_proficiencies": [
+          "int",
+          "wis"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "dagger",
+          "staff"
+        ],
+        "speed": 9,
+        "passives": [
+          "sculpt_spells"
+        ]
+      },
+      "4": {
+        "level": 4,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 18,
+          "wis": 12,
+          "cha": 12
+        },
+        "hp": 26,
+        "proficiency": 2,
+        "slots": {
+          "1": 4,
+          "2": 3
+        },
+        "resources": {
+          "arcane_recovery": 2
+        },
+        "abilities": [
+          "fire_bolt",
+          "magic_missile",
+          "mage_armor",
+          "scorching_ray"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "int",
+        "save_proficiencies": [
+          "int",
+          "wis"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "dagger",
+          "staff"
+        ],
+        "speed": 9,
+        "passives": [
+          "sculpt_spells"
+        ]
+      },
+      "5": {
+        "level": 5,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 18,
+          "wis": 12,
+          "cha": 12
+        },
+        "hp": 32,
+        "proficiency": 3,
+        "slots": {
+          "1": 4,
+          "2": 3,
+          "3": 2
+        },
+        "resources": {
+          "arcane_recovery": 3
+        },
+        "abilities": [
+          "fire_bolt",
+          "magic_missile",
+          "mage_armor",
+          "scorching_ray",
+          "fireball"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "int",
+        "save_proficiencies": [
+          "int",
+          "wis"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "armor": null,
+          "off_hand": null
+        },
+        "proficiencies": [
+          "dagger",
+          "staff"
+        ],
+        "speed": 9,
+        "passives": [
+          "sculpt_spells"
+        ]
+      }
+    },
+    "cleric": {
+      "1": {
+        "level": 1,
+        "stats": {
+          "str": 14,
+          "dex": 10,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 12
+        },
+        "hp": 10,
+        "proficiency": 2,
+        "slots": {
+          "1": 2
+        },
+        "resources": {},
+        "abilities": [
+          "sacred_flame",
+          "healing_word",
+          "cure_wounds",
+          "bless"
+        ],
+        "extra_attack": 0,
+        "always_prepared": [
+          "bless",
+          "cure_wounds"
+        ],
+        "spell_stat": "wis",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "mace",
+          "armor": "scale_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "disciple_of_life"
+        ]
+      },
+      "2": {
+        "level": 2,
+        "stats": {
+          "str": 14,
+          "dex": 10,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 12
+        },
+        "hp": 17,
+        "proficiency": 2,
+        "slots": {
+          "1": 3
+        },
+        "resources": {
+          "channel": 1
+        },
+        "abilities": [
+          "sacred_flame",
+          "healing_word",
+          "cure_wounds",
+          "bless",
+          "preserve_life"
+        ],
+        "extra_attack": 0,
+        "always_prepared": [
+          "bless",
+          "cure_wounds"
+        ],
+        "spell_stat": "wis",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "mace",
+          "armor": "scale_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "disciple_of_life"
+        ]
+      },
+      "3": {
+        "level": 3,
+        "stats": {
+          "str": 14,
+          "dex": 10,
+          "con": 14,
+          "int": 8,
+          "wis": 16,
+          "cha": 12
+        },
+        "hp": 24,
+        "proficiency": 2,
+        "slots": {
+          "1": 4,
+          "2": 2
+        },
+        "resources": {
+          "channel": 1
+        },
+        "abilities": [
+          "sacred_flame",
+          "healing_word",
+          "cure_wounds",
+          "bless",
+          "preserve_life",
+          "aid"
+        ],
+        "extra_attack": 0,
+        "always_prepared": [
+          "bless",
+          "cure_wounds",
+          "aid"
+        ],
+        "spell_stat": "wis",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "mace",
+          "armor": "scale_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "disciple_of_life"
+        ]
+      },
+      "4": {
+        "level": 4,
+        "stats": {
+          "str": 14,
+          "dex": 10,
+          "con": 14,
+          "int": 8,
+          "wis": 18,
+          "cha": 12
+        },
+        "hp": 31,
+        "proficiency": 2,
+        "slots": {
+          "1": 4,
+          "2": 3
+        },
+        "resources": {
+          "channel": 1
+        },
+        "abilities": [
+          "sacred_flame",
+          "healing_word",
+          "cure_wounds",
+          "bless",
+          "preserve_life",
+          "aid"
+        ],
+        "extra_attack": 0,
+        "always_prepared": [
+          "bless",
+          "cure_wounds",
+          "aid"
+        ],
+        "spell_stat": "wis",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "mace",
+          "armor": "scale_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "disciple_of_life"
+        ]
+      },
+      "5": {
+        "level": 5,
+        "stats": {
+          "str": 14,
+          "dex": 10,
+          "con": 14,
+          "int": 8,
+          "wis": 18,
+          "cha": 12
+        },
+        "hp": 38,
+        "proficiency": 3,
+        "slots": {
+          "1": 4,
+          "2": 3,
+          "3": 2
+        },
+        "resources": {
+          "channel": 1
+        },
+        "abilities": [
+          "sacred_flame",
+          "healing_word",
+          "cure_wounds",
+          "bless",
+          "preserve_life",
+          "aid",
+          "mass_healing_word"
+        ],
+        "extra_attack": 0,
+        "always_prepared": [
+          "bless",
+          "cure_wounds",
+          "aid"
+        ],
+        "spell_stat": "wis",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "mace",
+          "armor": "scale_mail",
+          "off_hand": "shield"
+        },
+        "proficiencies": [
+          "simple",
+          "light",
+          "medium",
+          "heavy",
+          "shield"
+        ],
+        "speed": 9,
+        "passives": [
+          "disciple_of_life"
+        ]
+      }
+    }
+  },
+  "abilities": {
+    "action_surge": {
+      "name": "动作如潮",
+      "effect": "action_surge",
+      "cost": "free",
+      "level": 0,
+      "range": 0,
+      "description": "恢复一个动作；不消耗动作或附赠动作，每次短休一次。",
+      "resource": "action_surge"
+    },
+    "rally": {
+      "name": "战技：鼓舞",
+      "effect": "rally",
+      "cost": "bonus",
+      "level": 0,
+      "range": 9,
+      "description": "队友获得8点临时生命；倒地队友先恢复1生命。消耗一枚优越骰。",
+      "resource": "superiority"
+    },
+    "flurry": {
+      "name": "疾风连击",
+      "effect": "flurry",
+      "cost": "bonus",
+      "level": 0,
+      "range": 1.5,
+      "description": "消耗一气点，对相邻敌人连续两次徒手攻击。",
+      "resource": "ki"
+    },
+    "patient_defence": {
+      "name": "耐心防御",
+      "effect": "patient_defence",
+      "cost": "bonus",
+      "level": 0,
+      "range": 0,
+      "description": "消耗一气点，获得闪避直到下回合。",
+      "resource": "ki"
+    },
+    "scorching_ray": {
+      "name": "灼热射线",
+      "effect": "scorching_ray",
+      "cost": "action",
+      "level": 2,
+      "range": 18,
+      "description": "逐条作法术攻击，三条射线各造成 2d6 火焰伤害；升环每环增加一条。"
+    },
+    "fireball": {
+      "name": "火球术",
+      "effect": "fireball",
+      "cost": "action",
+      "level": 3,
+      "range": 18,
+      "description": "以可见敌人为中心，6米内生物受8d6火焰伤害，敏捷豁免减半；塑能保护使友军免伤。"
+    },
+    "aid": {
+      "name": "援助术",
+      "effect": "aid",
+      "cost": "action",
+      "level": 2,
+      "range": 9,
+      "description": "9米内可见队友生命上限与当前生命增加5，每升一环额外5；本场同名取较高值，不重复治疗。"
+    },
+    "mass_healing_word": {
+      "name": "群体治愈真言",
+      "effect": "mass_healing_word",
+      "cost": "bonus",
+      "level": 3,
+      "range": 18,
+      "description": "治疗18米内至多六个可见队友 1d4+感知+生命领域加成；升环增加骰数。"
+    },
+    "preserve_life": {
+      "name": "引导神力：维持生命",
+      "effect": "preserve_life",
+      "cost": "action",
+      "level": 0,
+      "range": 9,
+      "description": "9米内可见队友恢复三倍牧师等级生命。",
+      "resource": "channel"
+    }
+  },
+  "items": {
+    "chain_mail": {
+      "name": "链甲",
+      "slot": "armor",
+      "kind": "armor",
+      "ac": 16,
+      "category": "heavy"
+    },
+    "scale_mail": {
+      "name": "鳞甲",
+      "slot": "armor",
+      "kind": "armor",
+      "ac": 14,
+      "category": "medium"
+    },
+    "leather": {
+      "name": "皮甲",
+      "slot": "armor",
+      "kind": "armor",
+      "ac": 11,
+      "category": "light"
+    },
+    "shield": {
+      "name": "盾牌",
+      "slot": "off_hand",
+      "kind": "shield",
+      "ac": 2,
+      "category": "shield"
+    },
+    "greatsword": {
+      "name": "双手巨剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "2d6",
+      "damage_type": "slashing",
+      "category": "martial",
+      "two_handed": true
+    },
+    "staff": {
+      "name": "木杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "category": "simple"
+    }
+  }
+}

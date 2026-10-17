@@ -6,6 +6,7 @@ import uuid
 
 from .content import load_content
 from . import dice, spatial
+from .growth import GrowthMixin, DATA, SELF, FRIENDLY, PROF, proficiency, snapshot, recalculate
 
 
 class GameError(Exception):
@@ -18,16 +19,25 @@ def modifier(score):
     return (score - 10) // 2
 
 
-class Engine:
+class Engine(GrowthMixin):
     def __init__(self, content=None):
         self.content = content if content is not None else load_content()
+        self.content = deepcopy(self.content)
+        self.content["abilities"].update(deepcopy(DATA["abilities"]))
+        self.content["items"].update(deepcopy(DATA["items"]))
+        self.content["version"]="0.3.0-m3"
+        self.content["rules_version"]="0.3.0-provisional"
 
     def _check_version(self, state):
+        if any(a.get("growth_version") not in (None,1) for a in state.get("actors",{}).values()):
+            raise GameError("version_mismatch","成长存档版本不受支持，请使用对应版本服务。")
+        if (state.get('content_version'),state.get('rules_version'),state.get('save_version'))==('0.1.0-slice','0.1.0-provisional',1):
+            return  # Explicit legacy adapter: no mutation or implicit resource grants.
         for field, content_field in (("content_version", "version"), ("rules_version", "rules_version"), ("save_version", "save_version")):
             if state.get(field) != self.content[content_field]:
                 raise GameError("version_mismatch", "存档版本与内容包不匹配，请使用对应版本服务或明确迁移。")
 
-    def new_run(self, name="远征队", templates=None, seed=None):
+    def new_run(self, name="远征队", templates=None, seed=None, *, levels=None, loadouts=None):
         templates = ["fighter", "monk", "wizard", "cleric"] if templates is None else templates
         if not isinstance(name, str) or not name.strip() or len(name) > 40:
             raise GameError("invalid_party", "队伍名应为 1 至 40 个字符。")
@@ -72,6 +82,17 @@ class Engine:
                 "conditions": [], "concentration": None, "effects": {}, "temp_hp": 0,
                 "budgets": {"action": 0, "bonus": 0, "reaction": 1, "movement": 0}, "ended": True, "attacked": False,
             }
+        if levels is not None:
+            if not isinstance(levels,list) or len(levels)!=4 or any(type(n)!=int or not 1<=n<=5 for n in levels):
+                raise GameError("invalid_level", "试玩等级须为四个1至5整数。")
+        for i in range(4):
+            snapshot(state["actors"][f"P{i+1}"], (levels or [1]*4)[i], self.content["items"])
+        if loadouts:
+            state['phase']='victory'
+            for command in loadouts:
+                if command.get('type') not in ('equip','prepare'): raise GameError('invalid_setup','战前配置只接受装备与准备。')
+                state,_=self._management_execute(state,command)
+            state['phase']='combat'; state['revision']=0
         initiatives = {actor_id: dice.die(state, 4) + modifier(a["stats"]["dex"]) for actor_id, a in state["actors"].items()}
         # Stable ties: party first, then higher Dexterity, then actor ID.
         state["turn_order"] = sorted(state["actors"], key=lambda aid: (-initiatives[aid], state["actors"][aid]["side"] != "party", -state["actors"][aid]["stats"]["dex"], aid))
@@ -82,7 +103,24 @@ class Engine:
         return state
 
     def _emit(self, state, kind, text, **details):
+        # Area effects may resolve unseen enemies. Do not publish their rolls,
+        # HP, identity, or damage totals in the player's event stream.
+        subject=state['actors'].get(text.split(' ',1)[0])
+        if subject and subject['side']=='enemy' and not self._visible(state,subject): return
+        for observed in state["actors"].values():
+            if observed["side"] == "enemy" and self._visible(state, observed):
+                state.setdefault("last_seen", {})[observed["id"]] = {"id": observed["id"], "name": observed["name"], "position": observed["position"], "round": state["round"]}
+        summary = state.setdefault("battle_summary", {"damage":0, "healing":0, "downed":0, "deaths":0, "slots":0, "potions":0})
+        if kind == "damage":
+            summary["damage"] += details.get("applied_damage", 0)
+        elif kind == "heal":
+            summary["healing"] += details.get("actual_healing", 0)
+        elif kind in ("downed", "death"):
+            summary["downed" if kind == "downed" else "deaths"] += 1
+        elif kind == "ability" and details.get("slot", 0):
+            summary["slots"] += 1
         state["event_seq"] += 1
+        text = text.replace("AC ", "防御 ").replace("DC ", "难度 ").replace("d20", "二十面骰")
         event = {"seq": state["event_seq"], "kind": kind, "text": text, "details": details}
         state["event_log"].append(event)
         state["event_log"] = state["event_log"][-100:]
@@ -102,7 +140,7 @@ class Engine:
         return actor["hp"] > 0 and "dead" not in actor["conditions"]
 
     def _active(self, state):
-        return [aid for aid in state["active_group"] if state["actors"][aid]["side"] == "party" and self._alive(state["actors"][aid]) and not state["actors"][aid]["ended"]]
+        return [aid for aid in (state["active_group"] if state["phase"] == "combat" else []) if state["actors"][aid]["side"] == "party" and self._alive(state["actors"][aid]) and not state["actors"][aid]["ended"]]
 
     def view(self, state):
         self._check_version(state)
@@ -113,7 +151,24 @@ class Engine:
                 continue
             result = {key: deepcopy(actor[key]) for key in common}
             if actor["side"] == "party":
-                result.update({key: deepcopy(actor[key]) for key in ("resources", "slots", "concentration", "death_success", "death_failure", "temp_hp")})
+                result.update({key: deepcopy(actor[key]) for key in ("resources", "slots", "concentration", "death_success", "death_failure", "temp_hp", "effects")})
+                conditions = actor["conditions"]
+                result["status"] = ("死亡" if "dead" in conditions else
+                    "倒地·伤势稳定" if "stable" in conditions else
+                    f"倒地（死亡豁免 成功 {actor['death_success']} / 失败 {actor['death_failure']}）" if "downed" in conditions else
+                    "战斗已结束" if state["phase"] != "combat" else
+                    "可操作" if actor["id"] in self._active(state) else
+                    "已结束操作" if actor.get("last_turn_round") == state["round"] else "未轮到")
+                if result["concentration"]:
+                    result["concentration"]["name"] = self.content["abilities"][result["concentration"]["ability"]]["name"]
+                for effect_id, effect in result["effects"].items():
+                    effect["name"] = self.content["abilities"].get(effect_id, {}).get("name", effect_id)
+                    effect["durations"] = {source: state["actors"][source]["concentration"]["remaining"]
+                        for source in effect.get("sources", []) if state["actors"].get(source, {}).get("concentration")}
+                for key in ("equipment", "inventory", "prepared", "known_spells", "always_prepared", "proficiency", "extra_attack", "max_slots", "max_resources"):
+                    if key in actor: result[key]=deepcopy(actor[key])
+                result["equipment_names"] = {k:self.content["items"].get(v,{}).get("name","无") for k,v in actor.get("equipment",{}).items()}
+                result["inventory_items"] = [{"id":k,"name":self.content["items"][k]["name"],"slot":self.content["items"][k]["slot"]} for k in actor.get("inventory",[]) if self.content["items"][k]["kind"]!="potion"]
                 result["abilities"] = self.actions(state, actor["id"])
                 result["menu_actions"] = self.menu_actions(state, actor["id"])
                 party.append(result)
@@ -125,7 +180,7 @@ class Engine:
             raw = state["pending"]
             reactor, mover = state["actors"][raw["reactor"]], state["actors"][raw["mover"]]
             adv, dis, height = self._attack_context(state, reactor, mover)
-            bonus = 2 + modifier(reactor["stats"][reactor["attack_stat"]]) + height
+            bonus = self._weapon_proficiency(reactor) + modifier(reactor["stats"][reactor["attack_stat"]]) + height
             description = f"{mover['id']} {mover['name']} 即将离开 {reactor['id']} {reactor['name']} 的近战触及，是否借机攻击？消耗 1 次反应。"
             pending = {"kind": raw["kind"], "reactor": raw["reactor"], "mover": raw["mover"],
                        "description": description, "choices": ["accept", "decline"],
@@ -136,9 +191,13 @@ class Engine:
                 pending["preview"]["warnings"].append("反应结束后，敌人若仍能行动，会继续剩余移动与攻击。")
         return {
             "id": state["id"], "name": state["name"], "revision": state["revision"], "phase": state["phase"],
+            "initiative_order": [{"id": aid, "current": aid in state["active_group"] and state["phase"] == "combat"}
+                for aid in state["turn_order"] if state["actors"][aid]["side"] == "party" or self._visible(state, state["actors"][aid]) or aid in state.get("last_seen", {})],
+            "last_seen": [deepcopy(entry) for aid, entry in state.get("last_seen", {}).items() if not self._visible(state, state["actors"][aid])],
             "round": state["round"], "active": self._active(state), "party": party, "enemies": enemies,
             "map": deepcopy(state["map"]), "pending": pending, "recent_events": deepcopy(state["event_log"][-6:]),
-            "outcome": state["outcome"], "content_version": state["content_version"], "rules_version": state["rules_version"],
+            "battle_summary": deepcopy(state.get("battle_summary", {})),
+            "development": state.get("development",False), "outcome": state["outcome"], "content_version": state["content_version"], "rules_version": state["rules_version"],
             "encounter_name": state["encounter_name"], "short_rests": state["short_rests"],
             "settlement": {"completed": True, "next_encounter": None, "loot_available": False,
                            "loot_description": "本场没有配置可拾取战利品；目前无法搜刮遗体。"}
@@ -157,14 +216,20 @@ class Engine:
                 reason = "请先选择待处理反应"
             elif state["phase"] != "combat" or actor_id not in self._active(state):
                 reason = "当前不可操作此队员"
-            elif actor["budgets"][ability["cost"]] <= 0:
-                reason = "动作资源不足"
+            elif actor["budgets"].get(ability["cost"],1) <= 0:
+                reason = {"action": "动作", "bonus": "附赠动作", "reaction": "反应"}.get(ability["cost"], ability["cost"]) + "资源不足"
             elif ability["level"] and not any(int(k) >= ability["level"] and v > 0 for k, v in actor["slots"].items()):
                 reason = "法术位不足"
             elif ability_id == "second_wind" and not actor["resources"].get("second_wind", 0):
                 reason = "短休资源已用完"
             elif ability_id == "unarmed_strike" and not actor["attacked"]:
                 reason = "需要先攻击：本回合使用攻击动作后解锁"
+            if not reason and ability_id in ("flurry","patient_defence","unarmed_strike") and (actor.get("equipment",{}).get("armor") or actor.get("equipment",{}).get("off_hand")): reason="武艺需要无甲无盾"
+            if not reason and ability.get("resource") and not actor["resources"].get(ability["resource"],0): reason="职业资源不足"
+            if not reason and ability["level"] and actor.get("growth_version") and ability_id not in actor.get("prepared",[]): reason="法术尚未准备"
+            if not reason and (ability["level"] or ability_id in ("fire_bolt","sacred_flame")):
+                try: self._casting_equipment(actor)
+                except GameError as exc: reason=exc.message
             entries.append({"id": ability_id, **deepcopy(ability), "available": not reason, "reason": reason})
         return entries
 
@@ -175,15 +240,16 @@ class Engine:
 
     def _skill_summary(self, actor, ability_id, slot=None):
         """Brief gameplay effects; detailed content notes remain in actions."""
+        if ability_id in DATA["abilities"]: return DATA["abilities"][ability_id]["description"]
         slot = slot or self.content["abilities"][ability_id]["level"]
         healing_bonus = modifier(actor["stats"][actor["spell_stat"]]) + (2 + slot if actor["template"] == "cleric" else 0) if actor.get("spell_stat") else 0
         descriptions = {
-            "second_wind": "自身恢复 1d10+1 生命；短休恢复使用次数。",
-            "unarmed_strike": f"先使用攻击动作，再附赠攻击相邻敌人；伤害 1d4{modifier(actor['stats'][actor['attack_stat']]):+d}。",
-            "fire_bolt": "攻击 18 米内可见敌人，命中造成 1d10 火焰伤害。",
+            "second_wind": f"自身恢复 1d10+{actor['level']} 生命；短休恢复使用次数。",
+            "unarmed_strike": f"先使用攻击动作，再附赠攻击相邻敌人；伤害 1d{6 if actor['level']>=3 else 4}{modifier(actor['stats'][actor['attack_stat']]):+d}。",
+            "fire_bolt": f"攻击18米内可见敌人，命中造成 {2 if actor['level']>=5 else 1}d10 火焰伤害。",
             "magic_missile": f"对 18 米内可见敌人发射 {3 + slot - 1} 枚自动命中飞弹，每枚 1d4+1 力场伤害。",
             "mage_armor": "无甲队友防御至少为 13+敏捷修正，持续本场战斗。",
-            "sacred_flame": "18 米内可见敌人作敏捷豁免；失败受到 1d8 光耀伤害。",
+            "sacred_flame": f"18米内可见敌人作敏捷豁免；失败受到 {2 if actor['level']>=5 else 1}d8 光耀伤害。",
             "healing_word": f"恢复 18 米内可见队友 {slot}d4{healing_bonus:+d} 生命，可唤醒倒地队友。",
             "cure_wounds": f"恢复相邻队友 {slot}d8{healing_bonus:+d} 生命，可唤醒倒地队友。",
             "bless": f"至多 {3 + slot - 1} 名队友攻击与豁免加 1d4；需要专注，持续至多 10 回合。",
@@ -211,6 +277,7 @@ class Engine:
             ("end", "结束角色操作", "结束此角色操作，保留反应；切换到下一位可操作队员。", {}, "none"),
         ]
         for kind, name, description, cost, mode in ordinary:
+            if kind=='attack' and actor.get('extra_attacks',0): cost={}
             reason = ""
             if state["pending"]:
                 reason = "请先选择待处理反应"
@@ -231,13 +298,13 @@ class Engine:
                                           for key in cost}})
         for ability in self.actions(state, actor_id):
             ability_id = ability["id"]
-            mode = ("none" if ability_id == "second_wind" else
+            mode = ("none" if ability_id == "second_wind" or ability_id in SELF else
                     "multi" if ability_id == "bless" else
-                    "party" if ability_id in ("healing_word", "cure_wounds", "mage_armor") else "enemy")
-            kind = "ability" if ability_id in ("second_wind", "unarmed_strike") else "cast"
+                    "party" if ability_id in ("healing_word", "cure_wounds", "mage_armor") or ability_id in FRIENDLY else "enemy")
+            kind = "ability" if ability_id in ("second_wind", "unarmed_strike") or (ability_id in DATA["abilities"] and not ability["level"]) else "cast"
             command = {"type": kind, "actor": actor_id, "ability": ability_id}
-            cost = {ability["cost"]: 1}
-            remaining = {ability["cost"]: actor["budgets"][ability["cost"]]}
+            cost = {} if ability["cost"]=="free" else {ability["cost"]: 1}
+            remaining = {} if ability["cost"]=="free" else {ability["cost"]: actor["budgets"][ability["cost"]]}
             slot = None
             if ability["level"]:
                 slot = self._default_slot(actor, ability["level"])
@@ -246,6 +313,9 @@ class Engine:
                 remaining[f"slot_{display_slot}"] = actor["slots"].get(str(display_slot), 0)
                 if slot is not None:
                     command["slot"] = slot
+            if ability.get("resource"):
+                cost[ability["resource"]]=1
+                remaining[ability["resource"]]=actor["resources"].get(ability["resource"],0)
             if ability_id == "second_wind":
                 cost["second_wind"] = 1
                 remaining["second_wind"] = actor["resources"].get("second_wind", 0)
@@ -289,11 +359,13 @@ class Engine:
                     base["slot"] = slot
             elif "slot" in base and (not ability["level"] or type(base["slot"]) is not int):
                 raise GameError("invalid_slot", "法术位环阶无效。")
-            if ability_id == "second_wind":
+            if ability_id == "second_wind" or ability_id in SELF:
                 response["preview"] = self.preview(state, base)
                 return response
             multi = ability_id == "bless"
-            side = "party" if ability_id in ("bless", "healing_word", "cure_wounds", "mage_armor") else "enemy"
+            side = "party" if ability_id in ("bless", "healing_word", "cure_wounds", "mage_armor") or ability_id in FRIENDLY else "enemy"
+            if "slot" in base and (type(base["slot"]) is not int or base["slot"] < ability["level"] or actor["slots"].get(str(base["slot"]), 0) <= 0):
+                raise GameError("invalid_slot", "没有指定环阶的合法法术位。")
             if multi:
                 response["max_targets"] = 3 + base.get("slot", ability["level"]) - 1
         for target in state["actors"].values():
@@ -334,18 +406,19 @@ class Engine:
                 if spatial.walkable(board, cell):
                     landmarks.setdefault(cell, {"position": cell, "name": name, "description": description})
         response.update(reachable=[], landmarks=[])
+        routes = spatial.paths(board, actor["position"], occupied)
         for y in range(board["height"]):
             for x in range(board["width"]):
                 cell = spatial.label(x, y)
                 if not spatial.walkable(board, cell):
                     continue
                 landmark = landmarks.get(cell, {})
-                route = spatial.path(board, actor["position"], cell, occupied)
+                route = routes.get(cell)
                 entry = {"destination": cell, "name": landmark.get("name", cell),
                          "description": landmark.get("description", ""), "cost": route[1] if route else None,
                          "path": route[0] if route else [], "available": False, "reason": ""}
                 try:
-                    checked = self.preview(state, {**command, "destination": cell})
+                    checked = self.preview(state, {**command, "destination": cell}, _routes=routes)
                     entry.update(available=True, preview=checked)
                     response["reachable"].append(cell)
                 except GameError as exc:
@@ -387,11 +460,11 @@ class Engine:
         return f"{horizontal}，{height}；按直线与高差计算，每格 {board['cell_size']:g} 米。"
 
     def _in_range(self, state, actor, target, distance):
-        actual = spatial.distance(state["map"], actor["position"], target["position"])
+        actual = (spatial.reach_distance if distance <= 1.5 else spatial.distance)(state["map"], actor["position"], target["position"])
         if actual > distance + 1e-8:
             reason = f"目标距离 {actual:.2f} 米，超出 {distance:g} 米射程。{self._distance_description(state, actor, target)}"
             if distance <= state["map"]["cell_size"]:
-                reason += "近身范围包含高差，斜角或高差可能使相邻格超出触及。"
+                reason += "近身范围包含高差，高差可能使相邻格超出触及；同高度斜角相邻可触及。"
             raise GameError("out_of_range", reason)
         if not spatial.line_of_sight(state["map"], actor["position"], target["position"]):
             raise GameError("blocked_sight", "目标被墙体或高度遮挡。")
@@ -406,8 +479,11 @@ class Engine:
         advantage = "downed" in target["conditions"] or ("prone" in target["conditions"] and distance <= 1.5)
         disadvantage = "dodge" in target["conditions"] or ("prone" in target["conditions"] and distance > 1.5)
         disadvantage |= "prone" in attacker["conditions"]
+        eq=attacker.get('equipment',{})
+        if attacker['side']=='party':
+            disadvantage |= any(self.content['items'].get(eq.get(k),{}).get('category') not in PROF[attacker['template']] for k in ('armor','off_hand') if eq.get(k))
         if ranged:
-            disadvantage |= any(self._alive(a) and a["side"] != attacker["side"] and (attacker["side"] == "enemy" or self._visible(state, a)) and spatial.distance(state["map"], attacker["position"], a["position"]) <= 1.5 and spatial.line_of_sight(state["map"], attacker["position"], a["position"]) for a in state["actors"].values())
+            disadvantage |= any(self._alive(a) and a["side"] != attacker["side"] and (attacker["side"] == "enemy" or self._visible(state, a)) and spatial.reach_distance(state["map"], attacker["position"], a["position"]) <= 1.5 and spatial.line_of_sight(state["map"], attacker["position"], a["position"]) for a in state["actors"].values())
         height_bonus = 0
         if ranged:
             delta = state["map"].get("heights", {}).get(attacker["position"], 0) - state["map"].get("heights", {}).get(target["position"], 0)
@@ -417,11 +493,18 @@ class Engine:
     def _blessed(self, actor):
         return "bless" in actor["effects"]
 
-    def preview(self, state, command):
+    def preview(self, state, command, *, _routes=None):
         self._check_version(state)
         if not isinstance(command, dict) or not isinstance(command.get("type"), str):
             raise GameError("invalid_command", "命令需要 type 字段。")
         kind = command["type"]
+        if kind=="practice": return self._practice_preview(state,command)
+        if kind in ("levelup","equip","prepare","recover"):
+            return self._management_preview(state,command)
+        if isinstance(command.get("ability"),str) and command.get("ability") in DATA["abilities"] and kind in ("cast","ability"):
+            if state["pending"]: raise GameError("reaction_pending","请先处理待选反应。")
+            if state["phase"]!="combat": raise GameError("not_in_combat","战斗已结束。")
+            return self._new_ability_preview(state,command)
         keys = {
             "attack": {"type", "actor", "target"}, "move": {"type", "actor", "destination"},
             "cast": {"type", "actor", "ability", "target", "targets", "slot"}, "ability": {"type", "actor", "ability", "target"},
@@ -441,6 +524,7 @@ class Engine:
             if state["short_rests"] <= 0:
                 raise GameError("invalid_rest", "全队短休不可用：本周目的两次短休已用完。")
             result["description"] = "全队短休：所有未死亡队员恢复一半最大生命（向上取整，最多到生命上限）与短休资源；不恢复法术位、药水，也不会复活已死亡队员。"
+            result["warnings"].append("本切片没有后续战斗，短休仅用于演示；仍会消耗次数。")
             result["cost"] = {"short_rests": 1}
             result["rest_effects"] = []
             for member in state["actors"].values():
@@ -449,7 +533,7 @@ class Engine:
                 after = min(member["max_hp"], member["hp"] + (member["max_hp"] + 1) // 2)
                 restored = {resource: maximum - member["resources"].get(resource, 0)
                             for resource, maximum in member["max_resources"].items()
-                            if maximum > member["resources"].get(resource, 0)}
+                            if resource != "arcane_recovery" and maximum > member["resources"].get(resource, 0)}
                 result["targets"].append(member["id"])
                 result["rest_effects"].append({"actor": member["id"], "name": member["name"],
                                                "hp_before": member["hp"], "hp_after": after,
@@ -471,7 +555,7 @@ class Engine:
             if occupant:
                 raise GameError("occupied_position", f"目的地被 {occupant['id']} {occupant['name']} 占用。")
             occupied = {a["position"] for a in state["actors"].values() if a["id"] != actor["id"] and "dead" not in a["conditions"] and self._visible(state, a)}
-            route = spatial.path(state["map"], actor["position"], destination, occupied)
+            route = _routes.get(destination) if _routes is not None else spatial.path(state["map"], actor["position"], destination, occupied)
             if route is None:
                 raise GameError("unreachable", "目标无法沿已知合法路径到达。")
             steps, cost = route
@@ -494,15 +578,18 @@ class Engine:
         if kind == "end":
             result["description"] = f"结束 {actor['id']} 的操作，保留剩余反应用于敌方行动。"
             return result
-        if kind in ("dash", "disengage", "dodge", "help", "attack"):
+        if kind == "attack" and actor.get("extra_attacks",0)>0:
+            result["cost"]={}
+        elif kind in ("dash", "disengage", "dodge", "help", "attack"):
             self._need(actor, "action")
             result["cost"] = {"action": 1}
         if kind == "attack":
             target = self._target(state, command.get("target"), "enemy")
             self._in_range(state, actor, target, 1.5)
             adv, dis, height = self._attack_context(state, actor, target)
-            bonus = 2 + modifier(actor["stats"][actor["attack_stat"]]) + height
-            weapon = self.content["items"][actor["weapon"]]
+            bonus = self._weapon_proficiency(actor) + modifier(actor["stats"][actor["attack_stat"]]) + height
+            weapon = deepcopy(self.content["items"][actor["weapon"]])
+            if actor["weapon"]=="monk_fists": weapon["dice"]=self._unarmed_dice(actor)
             damage_bonus = modifier(actor["stats"][actor["attack_stat"]])
             result.update(description=f"{weapon['name']}攻击 {target['id']} {target['name']}；命中加值 {bonus:+d}，对方 AC {target['ac']}；命中伤害 {weapon['dice']}{damage_bonus:+d}。", targets=[target["id"]], hit_probability=dice.hit_probability(bonus, target["ac"], adv, dis, self._blessed(actor)))
         elif kind in ("cast", "ability"):
@@ -517,6 +604,10 @@ class Engine:
             self._need(actor, ability["cost"])
             result["cost"] = {ability["cost"]: 1}
             spell_level = ability["level"]
+            if spell_level or ability_id in ("fire_bolt","sacred_flame"):
+                self._casting_equipment(actor)
+                if actor.get("growth_version") and spell_level and ability_id not in actor.get("prepared",[]):
+                    raise GameError("not_prepared","法术尚未准备。")
             if spell_level:
                 slot = command.get("slot", spell_level)
                 if type(slot) is not int or slot < spell_level or actor["slots"].get(str(slot), 0) <= 0:
@@ -542,10 +633,14 @@ class Engine:
             else:
                 friendly = ability_id in ("healing_word", "cure_wounds", "mage_armor")
                 target = self._target(state, command.get("target"), "party" if friendly else "enemy")
-                if ability_id == "mage_armor" and target["template"] not in ("wizard", "monk"):
+                if ability_id == "mage_armor" and (bool(target.get("equipment",{}).get("armor")) if "equipment" in target else target["template"] not in ("wizard", "monk")):
                     raise GameError("invalid_target", "法师护甲不能施于穿护甲的队员。")
                 if ability_id == "mage_armor" and not self._alive(target):
                     raise GameError("invalid_target", "目标已经失能。")
+                if ability_id == "unarmed_strike" and (actor.get("equipment",{}).get("armor") or actor.get("equipment",{}).get("off_hand")):
+                    raise GameError("monk_armor","武艺需要无甲无盾。")
+                if ability_id == "unarmed_strike" and self.content["items"][actor["weapon"]].get("category", "martial" if actor["weapon"]=="longsword" else "simple")=="martial":
+                    raise GameError("invalid_ability","武艺附赠打击需要先用武僧武器攻击。")
                 if ability_id == "unarmed_strike" and not actor["attacked"]:
                     raise GameError("invalid_ability", "武僧需先在本回合使用攻击动作，才能附赠徒手攻击。")
                 targets = [target]
@@ -558,14 +653,14 @@ class Engine:
             if ability_id in ("fire_bolt", "unarmed_strike"):
                 adv, dis, height = self._attack_context(state, actor, targets[0], ranged=ability_id == "fire_bolt")
                 attack_stat = actor["spell_stat"] if ability_id == "fire_bolt" else actor["attack_stat"]
-                bonus = 2 + modifier(actor["stats"][attack_stat]) + height
+                bonus = (proficiency(actor) if ability_id=="fire_bolt" else self._weapon_proficiency(actor)) + modifier(actor["stats"][attack_stat]) + height
                 result["hit_probability"] = dice.hit_probability(bonus, targets[0]["ac"], adv, dis, self._blessed(actor))
             elif ability_id == "magic_missile":
                 result["hit_probability"] = 1.0
             elif ability_id == "sacred_flame":
-                dc = 10 + modifier(actor["stats"][actor["spell_stat"]])
+                dc = 8 + proficiency(actor) + modifier(actor["stats"][actor["spell_stat"]])
                 result["save_dc"] = dc
-                save_bonus = modifier(targets[0]["stats"]["dex"]) + (2 if "dex" in targets[0]["save_proficiencies"] else 0)
+                save_bonus = modifier(targets[0]["stats"]["dex"]) + (proficiency(targets[0]) if "dex" in targets[0]["save_proficiencies"] else 0)
                 bonuses = [save_bonus + b for b in range(1, 5)] if self._blessed(targets[0]) else [save_bonus]
                 probability = sum(sum(n + b < dc for n in range(1, 21)) / 20 for b in bonuses) / len(bonuses)
                 if "dodge" in targets[0]["conditions"]:
@@ -588,6 +683,15 @@ class Engine:
             result["description"] = "撤离：本回合移动不触发借机攻击。"
         elif kind == "dodge":
             result["description"] = "闪避：直到下次回合开始，针对自己的攻击具有劣势。"
+        if kind == "potion" and actor["hp"] == actor["max_hp"]:
+            result["warnings"].append("目标已满血，本次治疗不会恢复生命，仍会消耗资源。")
+        if kind in ("cast", "ability"):
+            for target_id in result["targets"]:
+                target = state["actors"][target_id]
+                if command.get("ability") in ("healing_word", "cure_wounds", "second_wind") and target["hp"] == target["max_hp"]:
+                    result["warnings"].append(f"{target_id} 已满血，治疗可能浪费资源。")
+                if command.get("ability") in target["effects"]:
+                    result["warnings"].append(f"{target_id} 已有同名效果，重复施法可能浪费资源。")
         return result
 
     def _move_reactors(self, state, actor, steps):
@@ -600,14 +704,20 @@ class Engine:
                     or not self._visible(state, reactor) or reactor["budgets"]["reaction"] <= 0
                     or (reactor["side"] == "enemy" and reactor.get("range", 1.5) > 1.5)):
                 continue
-            if any(spatial.distance(state["map"], reactor["position"], start) <= 1.5
-                   < spatial.distance(state["map"], reactor["position"], end)
+            if any(spatial.reach_distance(state["map"], reactor["position"], start) <= 1.5
+                   < spatial.reach_distance(state["map"], reactor["position"], end)
                    and spatial.line_of_sight(state["map"], reactor["position"], start)
                    for start, end in zip(steps, steps[1:])):
                 threats.append({"id": reactor["id"], "name": reactor["name"]})
         return threats
 
     def execute(self, state, command):
+        if isinstance(command,dict) and command.get("type")=="practice":
+            self._check_version(state)
+            return self._practice_execute(state,command)
+        if isinstance(command,dict) and command.get("type") in ("levelup","equip","prepare","recover"):
+            self._check_version(state)
+            return self._management_execute(state,command)
         checked = self.preview(state, command)
         work = deepcopy(state)
         before = work["event_seq"]
@@ -618,7 +728,7 @@ class Engine:
             for actor in work["actors"].values():
                 if actor["side"] == "party" and "dead" not in actor["conditions"]:
                     self._heal(work, actor, (actor["max_hp"] + 1) // 2, "短休")
-                    actor["resources"].update(actor["max_resources"])
+                    actor["resources"].update({k:v for k,v in actor["max_resources"].items() if k!="arcane_recovery"})
             self._emit(work, "rest", f"全队短休完成，剩余 {work['short_rests']} 次；法术位、药水未恢复，已死亡队员不会复活。")
         else:
             actor = work["actors"][command["actor"]]
@@ -637,6 +747,8 @@ class Engine:
                         actor["resources"][resource] -= cost
                 if kind == "attack":
                     actor["attacked"] = True
+                    if actor.get("extra_attacks",0)>0: actor["extra_attacks"]-=1
+                    else: actor["extra_attacks"]=actor.get("extra_attack",0)
                     self._weapon_attack(work, actor, work["actors"][command["target"]])
                 elif kind in ("cast", "ability"):
                     self._cast(work, actor, command, checked["targets"])
@@ -654,6 +766,8 @@ class Engine:
                 elif kind == "help":
                     self._heal(work, work["actors"][command["target"]], 1, "救助")
                 elif kind == "potion":
+                    work.setdefault("battle_summary", {}).setdefault("potions", 0)
+                    work["battle_summary"]["potions"] += 1
                     amount, detail = dice.roll(work, "2d4+2")
                     self._heal(work, actor, amount, "治疗药水", detail)
             self._outcome(work)
@@ -663,17 +777,19 @@ class Engine:
 
     def _cast(self, state, actor, command, target_ids):
         ability_id = command["ability"]
+        if ability_id in DATA["abilities"]:
+            return self._new_effect(state,actor,command,target_ids)
         effect = self.content["abilities"][ability_id]["effect"]
         target = state["actors"][target_ids[0]]
         slot = command.get("slot", 0)
         self._emit(state, "ability", f"{actor['id']} 使用 {self.content['abilities'][ability_id]['name']} → {', '.join(target_ids)}。", cost=self.content["abilities"][ability_id]["cost"], slot=slot)
         if effect == "fire_bolt":
-            self._attack(state, actor, target, "1d10", "fire", actor["spell_stat"], ranged=True, damage_modifier=0)
+            self._attack(state, actor, target, "2d10" if actor["level"]>=5 else "1d10", "fire", actor["spell_stat"], ranged=True, damage_modifier=0)
         elif effect == "sacred_flame":
-            dc = 10 + modifier(actor["stats"][actor["spell_stat"]])
+            dc = 8 + proficiency(actor) + modifier(actor["stats"][actor["spell_stat"]])
             success = self._save(state, target, "dex", dc, "圣火术")
             if not success:
-                amount, detail = dice.roll(state, "1d8")
+                amount, detail = dice.roll(state, "2d8" if actor["level"]>=5 else "1d8")
                 self._damage(state, target, amount, "radiant", "圣火术", detail)
         elif effect == "magic_missile":
             for dart in range(3 + slot - 1):
@@ -689,13 +805,14 @@ class Engine:
             detail.update(spell_modifier=spell_bonus, life_domain=life_bonus)
             self._heal(state, target, amount + spell_bonus + life_bonus, self.content["abilities"][ability_id]["name"], detail)
         elif effect == "second_wind":
-            amount, detail = dice.roll(state, "1d10+1")
+            amount, detail = dice.roll(state, f"1d10+{actor['level']}")
             self._heal(state, actor, amount, "回气", detail)
         elif effect == "unarmed_strike":
-            self._attack(state, actor, target, "1d4", "bludgeoning", actor["attack_stat"])
+            self._attack(state, actor, target, "1d6" if actor["level"]>=3 else "1d4", "bludgeoning", actor["attack_stat"])
         elif effect == "mage_armor":
             target["ac"] = max(target["base_ac"], 13 + modifier(target["stats"]["dex"]))
             target["effects"]["mage_armor"] = {"source": actor["id"]}
+            if target.get("growth_version"): recalculate(target,self.content["items"])
             self._emit(state, "effect", f"{target['id']} 获得法师护甲，AC {target['ac']}。")
         elif effect == "bless":
             self._drop_concentration(state, actor, "被新专注替换")
@@ -710,28 +827,42 @@ class Engine:
                 target_actor["effects"]["bless"] = {"source": sources[-1], "sources": sources}
             self._emit(state, "concentration", f"{actor['id']} 专注祝福术（10 回合），目标的攻击与豁免获得 1d4；同名效果不叠加。")
 
+    def _unarmed_dice(self,a):
+        eq=a.get('equipment',{})
+        if a['template']=='monk' and not eq.get('armor') and not eq.get('off_hand'):
+            return '1d6' if a['level']>=3 else '1d4'
+        return '0d4+1'
+
+    def _weapon_proficiency(self,a):
+        if a['side']!='party' or not a.get('growth_version'): return proficiency(a)
+        item=self.content['items'][a['weapon']]
+        category=item.get('category', 'martial' if a['weapon']=='longsword' else 'simple')
+        return proficiency(a) if a['weapon']=='monk_fists' or a['weapon'] in PROF[a['template']] or category in PROF[a['template']] else 0
+
     def _weapon_attack(self, state, attacker, target, reaction=False):
         if attacker["side"] == "party":
             item = self.content["items"][attacker["weapon"]]
             expression, damage_type, ranged = item["dice"], item["damage_type"], False
+            if attacker['weapon']=='monk_fists': expression=self._unarmed_dice(attacker)
         else:
             expression, damage_type = attacker["dice"], attacker["damage_type"]
             ranged = attacker["range"] > 1.5 and not reaction
         self._attack(state, attacker, target, expression, damage_type, attacker["attack_stat"], ranged=ranged, reaction=reaction)
 
-    def _attack(self, state, attacker, target, expression, damage_type, stat, ranged=False, damage_modifier=None, reaction=False):
+    def _attack(self, state, attacker, target, expression, damage_type, stat, ranged=False, damage_modifier=None, reaction=False, proficiency_override=None):
         adv, dis, height = self._attack_context(state, attacker, target, ranged)
         natural, rolls = dice.d20(state, adv, dis)
         bless = dice.die(state, 4) if self._blessed(attacker) else 0
         ability_bonus = modifier(attacker["stats"][stat])
-        bonus = 2 + ability_bonus + height
+        prof = proficiency_override if proficiency_override is not None else (proficiency(attacker) if damage_modifier is not None else self._weapon_proficiency(attacker))
+        bonus = prof + ability_bonus + height
         hit = natural == 20 or (natural != 1 and natural + bonus + bless >= target["ac"])
-        critical = hit and (natural == 20 or ("downed" in target["conditions"] and spatial.distance(state["map"], attacker["position"], target["position"]) <= 1.5))
+        critical = hit and (natural == 20 or ("downed" in target["conditions"] and spatial.reach_distance(state["map"], attacker["position"], target["position"]) <= 1.5))
         text = f"{attacker['id']} {'借机攻击' if reaction else '攻击'} {target['id']}：d20 {rolls} + {bonus}"
         if bless:
             text += f" + 祝福 {bless}"
         text += f" 对 AC {target['ac']}，{'暴击' if critical else '命中' if hit else '未命中'}。"
-        self._emit(state, "attack", text, rolls=rolls, natural=natural, proficiency=2, ability_modifier=ability_bonus, height_bonus=height, bless=bless, advantage=adv, disadvantage=dis, ac=target["ac"], hit=hit, critical=critical)
+        self._emit(state, "attack", text, rolls=rolls, natural=natural, proficiency=prof, ability_modifier=ability_bonus, height_bonus=height, bless=bless, advantage=adv, disadvantage=dis, ac=target["ac"], hit=hit, critical=critical)
         if hit:
             amount, detail = dice.roll(state, expression, critical)
             extra = ability_bonus if damage_modifier is None else damage_modifier
@@ -741,11 +872,11 @@ class Engine:
     def _save(self, state, target, stat, dc, reason):
         advantage = stat == "dex" and "dodge" in target["conditions"] and self._alive(target)
         natural, rolls = dice.d20(state, advantage=advantage)
-        proficiency = 2 if stat in target["save_proficiencies"] else 0
-        bonus = modifier(target["stats"][stat]) + proficiency
+        prof = proficiency(target) if stat in target["save_proficiencies"] else 0
+        bonus = modifier(target["stats"][stat]) + prof
         bless = dice.die(state, 4) if self._blessed(target) else 0
         success = natural + bonus + bless >= dc
-        self._emit(state, "save", f"{target['id']} {reason} {stat} 豁免：{rolls} {bonus:+d} + 祝福 {bless} 对 DC {dc}，{'成功' if success else '失败'}。", rolls=rolls, modifier=bonus, proficiency=proficiency, advantage=advantage, bless=bless, dc=dc, success=success)
+        self._emit(state, "save", f"{target['id']} {reason} {stat} 豁免：{rolls} {bonus:+d} + 祝福 {bless} 对 DC {dc}，{'成功' if success else '失败'}。", rolls=rolls, modifier=bonus, proficiency=prof, advantage=advantage, bless=bless, dc=dc, success=success)
         return success
 
     def _drop_concentration(self, state, actor, reason):
@@ -779,7 +910,8 @@ class Engine:
         was_downed = "downed" in target["conditions"]
         previous_hp = target["hp"]
         target["hp"] = max(0, previous_hp - damage)
-        self._emit(state, "damage", f"{target['id']} 受到 {source} 的 {amount} 点 {damage_type} 伤害（临时生命吸收 {temporary}），生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), raw_damage=original, applied_damage=amount, absorbed=temporary, damage_type=damage_type)
+        damage_label = {"force":"力场", "fire":"火焰", "slashing":"挥砍", "piercing":"穿刺", "radiant":"光耀", "bludgeoning":"钝击"}.get(damage_type, damage_type)
+        self._emit(state, "damage", f"{target['id']} 受到 {source} 的 {amount} 点 {damage_label} 伤害（临时生命吸收 {temporary}），生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), raw_damage=original, applied_damage=amount, absorbed=temporary, damage_type=damage_type)
         if target["hp"] == 0 and amount > 0:
             if target["side"] == "enemy":
                 target["conditions"] = ["dead"]
@@ -808,12 +940,17 @@ class Engine:
         previous = target["hp"]
         target["hp"] = min(target["max_hp"], target["hp"] + max(0, amount))
         if target["hp"] > 0:
+            if previous == 0 and target["id"] in state["active_group"] and target.get("last_turn_round") == state["round"]:
+                target["ended"] = False
             target["conditions"] = [c for c in target["conditions"] if c not in ("downed", "stable")]
             target["death_success"] = target["death_failure"] = 0
+        if target["hp"] == previous:
+            return
         self._emit(state, "heal", f"{target['id']} 获得 {source} 治疗 {target['hp'] - previous} 点，生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), rolled_healing=amount, actual_healing=target["hp"] - previous)
 
     def _death_status(self, state, actor):
         if actor["death_failure"] >= 3:
+            actor["death_failure"] = 3
             actor["conditions"] = ["dead"]
             self._emit(state, "death", f"{actor['id']} 死亡豁免失败三次，死亡。")
         elif actor["death_success"] >= 3 and "stable" not in actor["conditions"]:
@@ -824,6 +961,8 @@ class Engine:
         actor["conditions"] = [c for c in actor["conditions"] if c not in ("dodge", "disengaged")]
         actor["budgets"] = {"action": 1, "bonus": 1, "reaction": 1, "movement": actor["speed"]}
         actor["attacked"] = False
+        actor["extra_attacks"] = 0
+        actor["last_turn_round"] = state["round"]
         actor["ended"] = not self._alive(actor)
         if "downed" in actor["conditions"] and "stable" not in actor["conditions"]:
             natural = dice.die(state, 20)
@@ -849,10 +988,12 @@ class Engine:
         if not living_enemies:
             state["phase"], state["outcome"] = "victory", "victory"
             state["pending"] = None
+            state["active_group"] = []
             self._emit(state, "victory", "前哨战胜利！本切片已完成；完整成长、战利品和战役将在后续阶段接入。")
         elif not living_party:
             state["phase"], state["outcome"] = "defeated", "defeated"
             state["pending"] = None
+            state["active_group"] = []
             self._emit(state, "defeated", "四人均失去战斗能力，战斗失败。retry 可原样恢复战前血量、资源和随机数。")
 
     def _advance(self, state):
@@ -905,8 +1046,8 @@ class Engine:
                     # Ranged-only enemies do not invent a melee reaction weapon.
                     if reactor["side"] == "enemy" and reactor.get("range", 1.5) > 1.5:
                         continue
-                    near = spatial.distance(state["map"], reactor["position"], mover["position"]) <= 1.5
-                    leaving = spatial.distance(state["map"], reactor["position"], destination) > 1.5
+                    near = spatial.reach_distance(state["map"], reactor["position"], mover["position"]) <= 1.5
+                    leaving = spatial.reach_distance(state["map"], reactor["position"], destination) > 1.5
                     if near and leaving and spatial.line_of_sight(state["map"], reactor["position"], mover["position"]):
                         handled.append(reactor["id"])
                         if reactor["side"] == "party":
@@ -983,7 +1124,7 @@ class Engine:
             if self._visible(state, enemy):
                 self._emit(state, "enemy_wait", f"{enemy['id']} 未发现可见目标，守住位置。")
             return
-        in_range = [a for a in targets if spatial.distance(state["map"], enemy["position"], a["position"]) <= enemy["range"]]
+        in_range = [a for a in targets if (spatial.reach_distance if enemy["range"] <= 1.5 else spatial.distance)(state["map"], enemy["position"], a["position"]) <= enemy["range"]]
         retreat = enemy["range"] > 1.5 and any(spatial.distance(state["map"], enemy["position"], a["position"]) <= 1.5 for a in targets)
         if in_range and not retreat:
             self._enemy_finish(state, enemy)
@@ -998,9 +1139,9 @@ class Engine:
                         continue
                     if retreat and any(spatial.distance(state["map"], cell, known["position"]) <= 1.5 for known in targets):
                         continue
-                    if spatial.distance(state["map"], cell, target["position"]) > enemy["range"] or not spatial.line_of_sight(state["map"], cell, target["position"]):
+                    if (spatial.reach_distance if enemy["range"] <= 1.5 else spatial.distance)(state["map"], cell, target["position"]) > enemy["range"] or not spatial.line_of_sight(state["map"], cell, target["position"]):
                         continue
-                    route = spatial.path(state["map"], enemy["position"], cell, occupied)
+                    route = spatial.path(state["map"], enemy["position"], cell, occupied, avoid_hazards=True)
                     if route:
                         candidates.append((route[1], target["hp"], cell, route[0]))
         if not candidates:
@@ -1019,7 +1160,7 @@ class Engine:
 
     def _enemy_finish(self, state, enemy):
         if self._alive(enemy) and enemy["budgets"]["action"]:
-            targets = [a for a in self._enemy_targets(state, enemy) if spatial.distance(state["map"], enemy["position"], a["position"]) <= enemy["range"]]
+            targets = [a for a in self._enemy_targets(state, enemy) if (spatial.reach_distance if enemy["range"] <= 1.5 else spatial.distance)(state["map"], enemy["position"], a["position"]) <= enemy["range"]]
             if targets:
                 target = min(targets, key=lambda a: (a["hp"], spatial.distance(state["map"], enemy["position"], a["position"]), a["id"]))
                 # Attacking reveals this slice's hidden enemies before any

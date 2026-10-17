@@ -21,6 +21,9 @@ jobs:
       - run: python -m pytest -q
         env:
           PYTHONUTF8: '1'
+      - run: python -m tools.play_slice --seed 42
+      - run: python -m tools.play_slice --classes fighter,fighter,monk,monk --seed 713
+      - run: python -m tools.play_slice --classes wizard,wizard,cleric,cleric --seed 2026
       - name: Build tagged immutable client
         if: startsWith(github.ref, 'refs/tags/client-v')
         shell: pwsh

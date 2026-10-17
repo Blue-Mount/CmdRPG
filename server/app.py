@@ -65,7 +65,7 @@ def create_app(database_path=None, token=None, *, repository: Repository | None 
         if app.state.repository is not None:
             app.state.repository.close()
 
-    app = FastAPI(title="CmdRPG", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="CmdRPG", version="0.3.0", lifespan=lifespan)
     app.state.repository = repository
     if releases:
         app.include_router(client_update_router(releases))
@@ -111,6 +111,10 @@ def create_app(database_path=None, token=None, *, repository: Repository | None 
     @app.get("/health")
     def health():
         return {"status": "ok"}
+
+    @app.get("/runs")
+    def list_runs(store: Store):
+        return store.list_runs()
 
     @app.post("/runs")
     def create_run(body: CreateRunBody, store: Store):

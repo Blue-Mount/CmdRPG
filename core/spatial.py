@@ -56,7 +56,7 @@ def neighbors(board, position):
         yield dest, cost
 
 
-def path(board, start, destination, blocked=()):
+def path(board, start, destination, blocked=(), avoid_hazards=False):
     if not walkable(board, start) or not walkable(board, destination) or destination in blocked:
         return None
     queue = [(0, start)]
@@ -73,7 +73,7 @@ def path(board, start, destination, blocked=()):
                 result.append(current)
             return list(reversed(result)), cost
         for adjacent, price in neighbors(board, current):
-            if adjacent in blocked:
+            if adjacent in blocked or (avoid_hazards and adjacent in board.get("hazards", {})):
                 continue
             new_cost = cost + price
             if new_cost < best.get(adjacent, math.inf):
@@ -117,3 +117,36 @@ def line_of_sight(board, start, end):
             if board["heights"][cell] >= ray_height:
                 return False
     return True
+
+
+def reach_distance(board, a, b):
+    """Same-height eight-neighbor reach; elevated targets retain 3D distance."""
+    ax, ay = xy(a)
+    bx, by = xy(b)
+    if max(abs(ax-bx), abs(ay-by)) <= 1 and board.get("heights", {}).get(a, 0) == board.get("heights", {}).get(b, 0):
+        return 0 if a == b else board["cell_size"]
+    return distance(board, a, b)
+
+
+def paths(board, start, blocked=()):
+    """One Dijkstra traversal for a movement menu, without caching game state."""
+    best, previous, queue = {start: 0}, {}, [(0, start)]
+    while queue:
+        cost, current = heapq.heappop(queue)
+        if cost != best[current]:
+            continue
+        for adjacent, price in neighbors(board, current):
+            if adjacent in blocked:
+                continue
+            candidate = cost + price
+            if candidate < best.get(adjacent, math.inf):
+                best[adjacent], previous[adjacent] = candidate, current
+                heapq.heappush(queue, (candidate, adjacent))
+    routes = {}
+    for destination, cost in best.items():
+        route, current = [destination], destination
+        while current != start:
+            current = previous[current]
+            route.append(current)
+        routes[destination] = (list(reversed(route)), cost)
+    return routes

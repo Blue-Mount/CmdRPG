@@ -36,6 +36,15 @@ def parse_action(tokens):
         raise ParseError("请指定行动，例如 preview attack P1 E1。")
     kind = tokens[0].lower()
     args = tokens[1:]
+    if kind == 'practice' and not args: return {'type':'practice'}
+    if kind == 'recover' and len(args)==2 and args[1] in ('1','2','3'):
+        return {'type':'recover','actor':_actor(args[0]),'slot':int(args[1])}
+    if kind == 'levelup' and len(args)==1:
+        return {'type':'levelup','actor':_actor(args[0])}
+    if kind == 'equip' and len(args)==3:
+        return {'type':'equip','actor':_actor(args[0]),'slot':args[1],'item':None if args[2]=='none' else args[2]}
+    if kind == 'prepare' and len(args)==2:
+        return {'type':'prepare','actor':_actor(args[0]),'spells':[] if args[1]=='none' else args[1].split(',')}
     if kind in ("attack", "move", "help"):
         if len(args) != 2:
             raise ParseError("格式：%s P1 %s" % (kind, "G6" if kind == "move" else "E1/P2"))
@@ -52,7 +61,7 @@ def parse_action(tokens):
         command = {"type": kind, "actor": _actor(args[0]), "ability": _ability(args[1])}
         if len(args) == 3:
             command["target"] = _target(args[2])
-        elif command["ability"] != "second_wind":
+        elif command["ability"] not in ("second_wind","action_surge","patient_defence","mass_healing_word"):
             raise ParseError("此能力命令缺少目标，例如 ability P2 unarmed_strike E1。")
         return command
     if kind == "cast":
@@ -75,7 +84,7 @@ def parse_action(tokens):
             parsed = [_target(target, position=True) for target in targets]
             multiple = len(parsed) > 1 or command["ability"] == "bless"
             command["targets" if multiple else "target"] = parsed if multiple else parsed[0]
-        else:
+        elif command["ability"] not in ("aid","mass_healing_word","preserve_life"):
             raise ParseError("此施法命令缺少目标，例如 cast P3 fire_bolt E1。")
         return command
     if kind == "rest":

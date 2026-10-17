@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import sqlite3
 import uuid
 
 from .parser import ParseError, parse_line
@@ -17,8 +18,9 @@ from .menu import TerminalMenu
 
 HELP = """中文游玩：选角色编号 → 选行动/技能编号 → 选目标编号或目的地 → 自动预览 → c 确认。
 0 返回并取消当前预览；q 退出。数字只选择当前列表条目；多目标可输入 1,2,3。
-当前可玩内容：一场原创前哨战，四人 1 级队伍；战士、武僧、法师、牧师。
+当前可玩内容：一场原创前哨战，战士、武僧、法师、牧师固定成长1–5级。
 胜利后进入战后结算：1 全队短休（一次确认），3 同阵容新周目；当前没有下一关或尸体掉落。
+7–10 成长/装备/准备法术；独立开发局11号沿用当前组合重新演练。
 以下命令保留为快捷入口：
 resume                   恢复并显示局势
 party / map              队伍资源 / 可见格图
@@ -32,6 +34,10 @@ preview cast P4 bless P1,P2,P3 slot=1
 preview ability P1 second_wind
 preview ability P2 unarmed_strike E1
 preview cast P3 mage_armor P3 slot=1
+preview levelup P1 / preview equip P1 off_hand none
+preview equip P1 main_hand greatsword
+preview prepare P3 magic_missile,fireball / preview recover P3 2
+preview cast P4 aid slot=3
 preview dash P2 / preview disengage P2 / preview dodge P2
 preview help P1 P2 / preview potion P1
 do 1                     执行指定预览；局势变更后必须重新预览
@@ -178,7 +184,7 @@ class Client:
             self.output("全队资源已保存；从战后菜单选择接下来的操作。")
         elif (request["payload"].get("command", {}).get("type") in ("move", "end")
               or request["operation"] == "reactions"):
-            self.output(render_map(self.view, self.ui.selected))
+            self.output("第 %s 回合 · 可操作：%s；输入 map 展开地图。" % (self.view.get("round", "?"), "、".join(self.view.get("active", [])) or "无"))
         else:
             self.output("第 %s 回合 · 可操作：%s" % (self.view.get("round", "?"), "、".join(self.view.get("active", [])) or "无"))
         self._default_menu()
@@ -363,7 +369,9 @@ def install_completion(client):
 def argument_parser():
     parser = argparse.ArgumentParser(description="四人小队文字战术切片（M1/M2）")
     selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--setup", action="store_true", help="交互选择队伍名与四个职业")
     selection.add_argument("--new", action="store_true", help="开始新周目")
+    selection.add_argument("--list-runs", action="store_true", help="只读列出最近周目")
     selection.add_argument("--run", help="恢复指定周目 ID")
     parser.add_argument("--name", default="远征队", help="新队伍名称")
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric", help="恰好四个职业，允许重复")
@@ -385,8 +393,10 @@ def main(argv=None, *, input_reader=input, output=print):
                 stream.reconfigure(encoding="utf-8")
     parser = argument_parser()
     args = parser.parse_args(argv)
+    if args.setup:
+        args.new = True
     templates = [name.strip() for name in args.classes.split(",")]
-    if len(templates) != 4 or any(name not in ("fighter", "monk", "wizard", "cleric") for name in templates):
+    if args.new and (len(templates) != 4 or any(name not in ("fighter", "monk", "wizard", "cleric") for name in templates)):
         parser.error("--classes 须含四个 fighter/monk/wizard/cleric 职业，允许重复。")
     if args.url and args.db:
         parser.error("--url 与 --db 不能同时指定。")
@@ -396,6 +406,8 @@ def main(argv=None, *, input_reader=input, output=print):
     try:
         saved = read_json(config_path) or {}
         previous = saved.get("last", {})
+        if not isinstance(previous, dict):
+            raise ValueError("客户端记录格式错误：last 必须是对象。")
         url = args.url or (os.environ.get("CMDRPG_URL") if not args.db else None)
         if not url and not args.db and previous.get("mode") == "remote":
             url = previous.get("url")
@@ -407,6 +419,10 @@ def main(argv=None, *, input_reader=input, output=print):
             database_path = str(Path(database_path).resolve())
             transport = LocalTransport(database_path)
             scope = {"mode": "local", "db": database_path}
+        if args.list_runs:
+            for run in transport.list_runs():
+                output("%s  %s  版本 %s" % (run["id"], run["name"], run["revision"]))
+            return 0
         run_id = args.run or (previous.get("run_id") if not args.new and all(previous.get(key) == value for key, value in scope.items()) else None)
 
         def save_run(current_id):
@@ -416,14 +432,36 @@ def main(argv=None, *, input_reader=input, output=print):
         client = Client(transport, run_id=run_id, output=output, journal_path=journal_path, scope=scope, on_run=save_run)
         client.load_pending()
         if client.pending:
+            if args.run and client.pending.get("operation") == "create":
+                raise ValueError("显式 --run 与待确认建队请求冲突；请先不带 --run 恢复建队回执。")
             if args.new:
                 raise ValueError("有未确认请求；先恢复其回执，再用 --new 新建周目。")
             output("发现未确认请求，正在用原 ID 恢复回执。")
-            client._send_pending()
+            try:
+                client._send_pending()
+            except TransportError as exc:
+                if exc.status_code != 409 or client.pending or not client.view:
+                    raise
+                output("待确认请求已过期，已刷新当前周目；请重新选择行动。")
+                client.show_menu()
         elif run_id:
             client.refresh()
             save_run(run_id)
         else:
+            if args.setup:
+                args.name = input_reader("队伍名称（留空为远征队） > ").strip() or "远征队"
+                choices = {"1":"fighter", "2":"monk", "3":"wizard", "4":"cleric"}
+                output("1 战士（前哨长剑，防御18）  2 武僧（徒手，防御16）  3 法师（旅用匕首，防御12）  4 牧师（守营钉头锤，防御16）；每人有两瓶药水。")
+                templates = []
+                for index in range(4):
+                    choice = input_reader("第 %s 名队员职业编号 > " % (index + 1)).strip()
+                    if choice not in choices:
+                        raise ValueError("职业编号须为 1 至 4；尚未创建周目。")
+                    templates.append(choices[choice])
+                output("队伍：%s；职业：%s" % (args.name, ", ".join(templates)))
+                if input_reader("输入 c 确认建队，其他输入取消 > ").strip().lower() != "c":
+                    output("已取消建队。")
+                    return 0
             client.create(args.name, templates, args.seed)
         install_completion(client)
         while True:
@@ -434,7 +472,7 @@ def main(argv=None, *, input_reader=input, output=print):
                 return 0
             if not client.handle(line):
                 return 0
-    except (TransportError, ValueError, OSError) as exc:
+    except (TransportError, ValueError, OSError, sqlite3.Error) as exc:
         output("启动失败：%s" % getattr(exc, "message", str(exc)))
         return 1
     finally:

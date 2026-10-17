@@ -50,6 +50,9 @@ class LocalTransport:
                 ) from exc
             raise
 
+    def list_runs(self):
+        return self._call("list_runs")
+
     def create_run(self, payload):
         return self._call("create_run", **payload)
 
@@ -149,6 +152,9 @@ class HTTPTransport:
     @staticmethod
     def _run_path(run_id):
         return "/runs/" + quote(str(run_id), safe="")
+
+    def list_runs(self):
+        return self._request("GET", "/runs")
 
     def create_run(self, payload):
         return self._request("POST", "/runs", payload)

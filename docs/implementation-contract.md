@@ -1,4 +1,6 @@
-# M1/M2 实现契约
+# 实现契约（M1/M2历史基础与M3扩展）
+
+M3现行接口见文末；前段保留历史切片契约用于兼容说明。
 
 本文件供并行开发使用。首个切片只开放战士、武僧、法师、牧师的 1 级模板，地图为一场原创前哨战。不把切片宣称为完整 BG3 或六职业首版。
 
@@ -71,3 +73,41 @@ map：`width`（16）, `height`（12）, `cell_size`（1.5）, `walls`（如 F5�
 `python -m client` 默认本地 SQLite；`--url` + `--token` / 环境变量接远程；`--run ID` 恢复；`--new` 新建，`--classes fighter,monk,wizard,cleric`。网络写入的超时重试必须复用原 command_id。Python 标准库 urllib / readline 可选，不让公司端必须装 FastAPI。
 
 `preview move P2 G6`、`preview attack P1 E1`、`preview cast P3 fire_bolt E1`、`do 1`、`end P1`、`react accept`、`retry`、`rest short`。支持数字菜单与中文帮助。
+
+
+## 2026-10-17 兼容字段扩展
+
+`view.party[*].status` 为统一中文状态；`effects` 包含效果来源、名称及按施法者列出的 `durations`。`concentration` 增加中文 `name`。旧消费者可忽略新增字段。
+
+`initiative_order` 仅提供已揭示参与者编号与当前组标记，不提供先攻骰或未发现敌人。`last_seen` 是写入期间记录的历史目击位置/回合，不是当前位置；查询视图不更新记忆、不推进随机数。`battle_summary` 是保存的事件统计，旧存档从升级后开始累计，不能视为旧战斗的完整历史。非 combat 阶段 `active` 恒为 `[]`。
+
+鉴权 `GET /runs` 返回最近 20 个周目的编号、名称、版本、更新时间；客户端 `--list-runs` 只读，不更改默认恢复目标或处理 pending journal。
+
+
+## M3接口扩展（2026-10-18，现行）
+
+`Engine.new_run(..., *, levels=None, loadouts=None)` 的额外关键字仅供开发创建器；普通HTTP创建接口不接受等级/装备注入。新局默认仍为四名1级角色，但使用M3快照。开发创建器可为四人各指定1–5级并验证战前装备/准备；后续仍走同一SQLite和HTTP命令事务。
+
+新增安全阶段命令（`preview`与`commands`使用完全相同对象）：
+
+```json
+{"type":"levelup","actor":"P1"}
+{"type":"equip","actor":"P1","slot":"off_hand","item":null}
+{"type":"equip","actor":"P1","slot":"main_hand","item":"greatsword"}
+{"type":"prepare","actor":"P3","spells":["magic_missile","fireball"]}
+{"type":"recover","actor":"P3","slot":2}
+```
+
+levelup只能升一级、最高5，不允许变更职业或属性；本轮是安全阶段成长验证，没有经验奖励条件。equip验证背包、装备位、双手/盾互斥；不熟练可穿戴，但结算施法限制与攻击劣势。prepare只接受无重复已学带环法术，上限等级+施法属性修正，领域恒定法术必须保留且不计入上限。recover消耗奥术回想点数恢复一个指定环法术位。战斗/反应等待时全部拒绝，失败不改变输入。
+
+新增能力id：`action_surge`, `rally`, `flurry`, `patient_defence`, `scorching_ray`, `fireball`, `aid`, `preserve_life`, `mass_healing_word`。`action_surge`使用 `cost=free` 元数据和职业资源，不扣动作预算；其他按JSON声明扣动作/附赠、职业资源和法术位。群体援助/维持生命/治愈真言使用无目标命令，预览列出实际可见合法目标；火球指定中心敌人；射线/飞弹仍单目标。攻击预览可包含 `attack_count` 和 `hit_probability`，火球给出 `save_dc`。
+
+party投影增加 `equipment`, `equipment_names`, `inventory_items`, `proficiency`, `extra_attack`, `max_slots`, `max_resources`, `known_spells`, `prepared`, `always_prepared`；不返回内部随机数。原有消费者可忽略新字段。额外攻击余次存在角色存档中，不能用于施法或借机反应；重启、反应中断后保留，开始回合归零。
+
+开发局额外投影 `development=true`，胜利时可预览/确认 `{"type":"practice"}`：沿用等级、装备与准备法术，刷新生命/药水/全部资源，在同一开发周目演练原前哨战。该命令在普通周目不可用；不是战役下一关，不给经验/奖励。继续使用原有command_id幂等、revision冲突和回执恢复，不经SQL改档。
+
+### 存档兼容策略
+
+SQLite表结构和JSON外壳仍为1；M3新局标记内容 `0.3.0-m3`、规则 `0.3.0-provisional`，角色 `growth_version=1`。旧的精确组合 `0.1.0-slice/0.1.0-provisional/1` 由显式兼容分支读取，view/preview不迁移或发放资源；原HP/AC/法术/内嵌地图与战前快照保持原值，可继续战斗及待反应。旧角色只在安全阶段显式levelup时应用下一等级并建立装备/准备数据，同时将周目标记为M3内容版本；其他尚未升级的旧角色仍按原字段兼容。未知版本或未知growth_version拒绝。
+
+升级在副本中计算，由Repository在单事务提交，原回执仍可重放。升级不自动备份/覆盖原库；部署前应使用已有一致性备份工具。已显式升级的M3档不能回退给旧二进制，须恢复升级前备份。开发试玩一律独立临时数据库，不能通过改生产存档设定等级。

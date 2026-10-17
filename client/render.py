@@ -12,7 +12,7 @@ CONDITIONS = {"downed": "倒地", "dead": "死亡", "stable": "伤势稳定",
               "dodge": "闪避", "dodging": "闪避", "bless": "祝福",
               "disengage": "撤离", "disengaged": "撤离", "mage_armor": "法师护甲"}
 COSTS = {"action": "动作", "bonus": "附赠动作", "reaction": "反应", "movement": "移动",
-         "second_wind": "回气次数", "potions": "治疗药水", "short_rests": "短休次数", "ki": "气点"}
+         "second_wind": "回气次数", "potions": "治疗药水", "short_rests": "短休次数", "ki": "气点", "action_surge":"动作如潮", "superiority":"优越骰", "channel":"引导神力", "arcane_recovery":"奥术回想"}
 
 
 def _number(value):
@@ -67,7 +67,7 @@ def _brief(description):
 
 
 def _conditions(actor):
-    values = actor.get("conditions", [])
+    values = list(actor.get("conditions", [])) + list(actor.get("effects", {}))
     if isinstance(values, dict):
         values = list(values)
     return "、".join(CONDITIONS.get(str(value), str(value)) for value in values) or "正常"
@@ -78,11 +78,13 @@ def actor_line(actor, detailed=False):
         actor.get("id", "?"), actor.get("name", "?"), actor.get("hp", "?"),
         actor.get("max_hp", "?"), actor.get("ac", "?"), actor.get("position", "未知"))
     budgets = actor.get("budgets")
-    if budgets:
+    if budgets and actor.get("status") != "未轮到":
         result += "  动作 %s / 附赠 %s / 反应 %s / 移动 %s米" % (
             budgets.get("action", 0), budgets.get("bonus", 0),
             budgets.get("reaction", 0), budgets.get("movement", 0))
-    if actor.get("ended"):
+    if actor.get("status"):
+        result += "  " + actor["status"]
+    elif actor.get("ended"):
         result += "  已结束操作"
     result += "  [%s]" % _conditions(actor)
     if actor.get("slots"):
@@ -95,6 +97,8 @@ def actor_line(actor, detailed=False):
         concentration = actor["concentration"]
         label = concentration.get("name", concentration.get("ability", "专注效果")) if isinstance(concentration, dict) else str(concentration)
         result += "\n  专注：" + label
+        if isinstance(concentration, dict):
+            result += "（剩余 %s 回合，目标 %s）" % (concentration.get("remaining", "?"), "/".join(concentration.get("targets", [])))
     if detailed:
         result += "\n  等级 %s  速度 %s米" % (actor.get("level", "?"), actor.get("speed", "?"))
         if actor.get("stats"):
@@ -102,8 +106,22 @@ def actor_line(actor, detailed=False):
     return result
 
 
+def render_growth(actor):
+    slots={'main_hand':'主手','off_hand':'副手','armor':'护甲'}
+    stats={'str':'力量','dex':'敏捷','con':'体质','int':'智力','wis':'感知','cha':'魅力'}
+    lines=[f"{actor.get('id','')} {actor.get('name','')} · 等级 {actor.get('level',1)} · 熟练 +{actor.get('proficiency',2)} · 额外攻击 {actor.get('extra_attack',0)}"]
+    lines.append('属性：'+'，'.join(stats.get(k,k)+' '+str(v) for k,v in actor.get('stats',{}).items()))
+    lines.append('装备：'+'，'.join(slots.get(k,k)+' '+v for k,v in actor.get('equipment_names',{}).items()))
+    lines.append('法术位：'+render_cost({'slot_'+k:v for k,v in actor.get('slots',{}).items()}))
+    lines.append('职业资源：'+render_cost(actor.get('resources',{})))
+    names={x['id']:x['name'] for x in actor.get('abilities',[])}
+    lines.append('已准备：'+'、'.join(names.get(x,x) for x in actor.get('prepared',[])))
+    if actor.get('always_prepared'): lines.append('领域恒定准备：'+'、'.join(names.get(x,x) for x in actor['always_prepared']))
+    return '\n'.join(lines)
+
+
 def render_party(view):
-    return "队伍：\n" + "\n".join(actor_line(actor) for actor in view.get("party", []))
+    return "队伍：\n" + "\n".join(actor_line(actor)+"\n  "+render_growth(actor) for actor in view.get("party", []))
 
 
 def render_events(events, detailed=False):
@@ -129,9 +147,14 @@ def render_view(view, selected=None):
             actor["id"], actor.get("name", ""), actor.get("position", "未知"),
             _number(actor.get("budgets", {}).get("movement", 0)),
             actor.get("budgets", {}).get("action", 0), actor.get("budgets", {}).get("bonus", 0)))
+    if view.get("initiative_order"):
+        lines.append("先攻顺序（已揭示）：" + " → ".join(entry["id"] + ("（当前组）" if entry["current"] else "") for entry in view["initiative_order"]))
     living = [enemy for enemy in view.get("enemies", []) if enemy.get("hp", 0) > 0]
-    lines.append("局势：%s名队员存活；%s名可见敌人仍在战斗。击败本场守军即可获胜。" % (
-        sum(actor.get("hp", 0) > 0 for actor in view.get("party", [])), len(living)))
+    party = view.get("party", [])
+    lines.append("局势：清醒 %s 名 / 倒地 %s 名 / 死亡 %s 名；%s 名可见敌人仍在战斗。" % (
+        sum(actor.get("hp", 0) > 0 for actor in party),
+        sum("downed" in actor.get("conditions", []) and "dead" not in actor.get("conditions", []) for actor in party),
+        sum("dead" in actor.get("conditions", []) for actor in party), len(living)))
     game_map = view.get("map", {})
     if game_map:
         lines.append(render_map(view, selected=selected))
@@ -432,7 +455,7 @@ def render_map(view, selected=None, reachable=None):
         notes.append("地形补充：" + "；".join(terrain_notes))
     party = []
     for actor in view.get("party", []):
-        status = "可操作" if actor["id"] in view.get("active", []) else "倒地" if "downed" in actor.get("conditions", []) else "死亡" if "dead" in actor.get("conditions", []) else "已结束" if actor.get("ended") else "待轮到"
+        status = actor.get("status") or ("可操作" if actor["id"] in view.get("active", []) else "倒地" if "downed" in actor.get("conditions", []) else "死亡" if "dead" in actor.get("conditions", []) else "已结束" if actor.get("ended") else "待轮到")
         party.append("%s %s%s 生命%s/%s %s %s" % (
             actor["id"], actor.get("name", ""), "（已选）" if actor["id"] == selected else "",
             actor.get("hp", "?"), actor.get("max_hp", "?"), actor.get("position", "未知"), status))
@@ -441,7 +464,9 @@ def render_map(view, selected=None, reachable=None):
         notes.extend("  " + actor for actor in party)
     enemies = ["%s %s 生命%s/%s %s" % (actor["id"], actor.get("name", ""), actor.get("hp", "?"), actor.get("max_hp", "?"), actor.get("position", "未知"))
                for actor in living_enemies]
-    notes.append("存活敌人：" + ("；".join(enemies) or "当前无"))
+    notes.append("可见敌人：" + ("；".join(enemies) or "当前无可见敌人，敌人位置可能未知"))
+    for remembered in view.get("last_seen", []):
+        notes.append("%s? 最后目击：第 %s 回合 %s（当前位置未知）" % (remembered["id"], remembered["round"], remembered["position"]))
     if fallen_enemies:
         notes.append("阵亡敌人：" + "；".join("%s %s %s" % (actor["id"], actor.get("name", ""), actor.get("position", "未知"))
                                              for actor in fallen_enemies))

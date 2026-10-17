@@ -124,6 +124,7 @@ def test_life_healing_revival_and_same_turn_spells(engine, state):
 
 
 def test_opportunity_pause_and_resume(engine, state):
+    state["actors"]["P2"]["position"] = "A8"
     mover = state['actors']['E1']
     mover['hp'] = mover['max_hp'] = 100
     before = state['rng_state']
@@ -151,10 +152,10 @@ def test_movement_is_preserved_when_opportunity_downs_player(engine, state):
     state['actors']['E1']['position'] = 'B4'
     with patch('core.dice.die', side_effect=[20, 6, 6]):
         changed, events = engine.execute(state, {'type':'move','actor':'P1','destination':'D3'})
-    assert changed['actors']['P1']['position'] == 'B3'
-    assert changed['actors']['P1']['budgets']['movement'] == 7.5
+    assert changed['actors']['P1']['position'] == 'C3'
+    assert changed['actors']['P1']['budgets']['movement'] == 6
     assert 'downed' in changed['actors']['P1']['conditions']
-    assert len([e for e in events if e['kind'] == 'move']) == 1
+    assert len([e for e in events if e['kind'] == 'move']) == 2
 
 
 def test_disengage_prevents_opportunity(engine, state):
@@ -308,6 +309,7 @@ def test_save_proficiency_and_dodge_advantage(engine, state):
 
 def test_two_clerics_bless_does_not_stack_or_lose_other_source(engine, state):
     state['actors']['P1']['abilities'] = ['bless']
+    state['actors']['P1']['prepared'] = ['bless']  # synthetic second caster must prepare its spell
     state['actors']['P1']['slots'] = {'1':2}
     state['actors']['P1']['spell_stat'] = 'wis'
     state, _ = engine.execute(state, {'type':'cast','actor':'P1','ability':'bless','targets':['P3']})
@@ -342,6 +344,6 @@ def test_enemy_paths_around_visible_downed_player(engine, state):
     state['actors']['E3']['position'] = 'O12'
     with patch('core.dice.die', return_value=1):
         engine._enemy_turn(state, enemy)
-    assert enemy['position'] == 'D2'
-    assert enemy['budgets']['movement'] == 1.5
+    assert enemy['position'] == 'D1'
+    assert enemy['budgets']['movement'] == 3
     assert enemy['budgets']['action'] == 0

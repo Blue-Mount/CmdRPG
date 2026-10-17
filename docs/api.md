@@ -1,8 +1,8 @@
-# 游戏 API（M1/M2 切片）
+# 游戏 API（M3）
 
 所有游戏接口使用 `Authorization: Bearer <CMDRPG_TOKEN>`。`GET /health` 公开，返回 `{"status":"ok"}`。服务未设置 token 时游戏接口返回 503；凭据缺失或错误返回 401。凭据比较使用恒定时间比较。
 
-当前只提供四个 1 级职业模板和一场前哨战。HTTP 返回的视图、事件与预览由核心生成，不返回完整存档、随机数状态、种子或战前快照。API 文档可在本地服务的 `/docs` 查看。
+普通创建采用四个1级职业模板；M3支持固定成长至5级、装备和准备法术，仍为一场前哨战。HTTP 返回的视图、事件与预览由核心生成，不返回完整存档、随机数状态、种子或战前快照。API 文档可在本地服务的 `/docs` 查看。
 
 | 方法与路径 | 请求 | 返回 |
 | --- | --- | --- |
@@ -60,3 +60,6 @@
 `{"type":"rest","kind":"short"}` 的预览一次作用于全部未死亡队员，提供 `targets` 和 `rest_effects`；每项含 `actor`、`name`、`hp_before`、`hp_after`、`max_hp`、`healing` 及 `resources_restore`（此次恢复数量）。一次提交消耗一个全队短休次数，不恢复法术位和药水，不复活死者。菜单中的“新开一场战斗”经确认后使用现有 `POST /runs` 创建接口，保留当前职业阵容，原周目不变，并复用客户端创建幂等及回执恢复机制。
 
 本地仓库 `server.storage.Repository` 使用相同规则，不依赖 FastAPI；通过 `list_runs()` 可以选取已有周目。仓库通过线程锁与 SQLite 写事务串行提交，同一存档的多个窗口依据版本检查避免覆盖。
+
+
+M3新命令levelup/equip/prepare/recover/practice及新增字段见 [现行实现契约](implementation-contract.md#m3接口扩展2026-10-18现行)。所有新写入复用现有POST commands、幂等回执与版本保护；不新增绕过验证的开发HTTP写接口。独立试玩的--http仅绑定随机回环端口、临时数据库和一次性凭据，不使用生产配置。

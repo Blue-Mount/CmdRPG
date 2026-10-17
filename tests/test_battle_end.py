@@ -101,7 +101,8 @@ def test_whole_party_rest_previews_cancels_and_applies_once(completed):
         assert changed["hp"] == effects[aid]["hp_after"]
         assert changed["hp"] - original["hp"] == effects[aid]["healing"]
         assert changed["slots"] == original["slots"]
-        assert all(changed["resources"][key] == maximum for key, maximum in original["max_resources"].items())
+        for key, maximum in original["max_resources"].items():
+            assert changed["resources"][key] == (original["resources"][key] if key=="arcane_recovery" else maximum)
         assert changed["resources"]["potions"] == original["resources"]["potions"]
         assert "downed" not in changed["conditions"]
     assert after["actors"]["P2"] == before["actors"]["P2"]

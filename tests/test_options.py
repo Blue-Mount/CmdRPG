@@ -109,6 +109,10 @@ def test_distance_options_explain_diagonals_and_height_without_changing_reach(en
     assert enemy["distance"] == pytest.approx(2.1213203435596424)
     assert description in enemy["distance_description"]
     assert "按直线与高差计算" in enemy["distance_description"]
+    if not heights:
+        assert enemy["available"]
+        assert state == before
+        return
     assert not enemy["available"] and enemy["reason_code"] == "out_of_range"
     assert "2.12 米" in enemy["reason"] and "近身范围包含高差" in enemy["reason"]
     with pytest.raises(GameError) as blocked:

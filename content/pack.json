@@ -53,13 +53,13 @@
   },
   "map": {
     "width": 16, "height": 12, "cell_size": 1.5,
-    "walls": ["F2", "F3", "F4", "F5", "F7", "F8", "F9", "F10"],
+    "walls": ["F2", "F3", "F4", "F7", "F8", "F9", "F10"],
     "heights": {"K3": 1.5, "K4": 1.5, "L3": 3, "L4": 3, "M3": 3, "M4": 3},
     "difficult": ["D7", "E7", "G7", "G8"],
     "hazards": {"H9": {"damage": 2, "description": "燃烧碎屑：每次进入该格造成2点火焰伤害。"}, "I9": {"damage": 2, "description": "燃烧碎屑：每次进入该格造成2点火焰伤害。"}},
     "landmarks": [
       {"position": "B6", "name": "西侧集结点", "description": "四人从门外进入；沿第6行可直接望见门洞后的守卫。"},
-      {"position": "F6", "name": "断墙门洞", "description": "东西两侧之间的中央通路，墙端也可绕行。"},
+      {"position": "F6", "name": "断墙门洞", "description": "F5 / F6 为两格宽的中央通路；避免停在门洞，墙端也可绕行。"},
       {"position": "K4", "name": "瞭望台石阶", "description": "1.5米高的过渡台阶，通往3米高的L4瞭望台。"},
       {"position": "L4", "name": "东侧瞭望台", "description": "射手据守的小平台，可从石阶接近。"},
       {"position": "M10", "name": "内营入口", "description": "本场只以击败三名敌人为胜利条件；入口用于关键通路检查。"}

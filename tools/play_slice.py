@@ -68,7 +68,12 @@ def choose(engine, state):
         if 'second_wind' in abilities:
             commands.append({'type':'ability','actor':aid,'ability':'second_wind'})
         commands.append({'type':'potion','actor':aid})
+    if 'action_surge' in abilities and actor['budgets']['action']==0:
+        commands.append({'type':'ability','actor':aid,'ability':'action_surge'})
     for enemy in enemies:
+        if 'fireball' in abilities: commands.append({'type':'cast','actor':aid,'ability':'fireball','target':enemy['id']})
+        if 'scorching_ray' in abilities: commands.append({'type':'cast','actor':aid,'ability':'scorching_ray','target':enemy['id']})
+        if 'flurry' in abilities: commands.append({'type':'ability','actor':aid,'ability':'flurry','target':enemy['id']})
         if 'magic_missile' in abilities:
             commands.append({'type':'cast','actor':aid,'ability':'magic_missile','target':enemy['id']})
         if 'fire_bolt' in abilities:
@@ -90,14 +95,14 @@ def choose(engine, state):
     return ('command', {'type':'end','actor':aid})
 
 
-def play(templates=None, seed=42, max_commands=600, on_step=None):
+def play(templates=None, seed=42, max_commands=600, on_step=None, level=1):
     engine = Engine()
-    state = engine.new_run(templates=templates, seed=seed)
+    state = engine.new_run(templates=templates, seed=seed, levels=[level]*4)
     counts = {'commands':0,'reactions':0,'downed':0}
     for _ in range(max_commands):
         view = engine.view(state)
         if view['phase'] != 'combat':
-            return state, {**counts,'outcome':view['outcome'],'rounds':view['round'],'seed':seed,'templates':templates or ['fighter','monk','wizard','cleric']}
+            return state, {**counts,'outcome':view['outcome'],'level':level,'rounds':view['round'],'seed':seed,'templates':templates or ['fighter','monk','wizard','cleric']}
         operation, payload = choose(engine, state)
         previous = deepcopy(state)
         if operation == 'reaction':
@@ -114,10 +119,11 @@ def play(templates=None, seed=42, max_commands=600, on_step=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--level',type=int,choices=range(1,6),default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--classes', default='fighter,monk,wizard,cleric')
     args = parser.parse_args()
-    _, summary = play(args.classes.split(','), args.seed)
+    _, summary = play(args.classes.split(','), args.seed, level=args.level)
     print(json.dumps(summary, ensure_ascii=False))
     return 0 if summary['outcome'] == 'victory' else 1
 

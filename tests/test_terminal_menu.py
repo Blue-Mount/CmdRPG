@@ -94,6 +94,7 @@ class OpenScenario(Engine):
         if self.empty_slots:
             state["actors"]["P3"]["slots"] = {"1": 0}
         if self.with_pending:
+            state["actors"]["P2"]["position"] = "A8"
             self._continue_move(state, state["actors"]["E1"], ["D4", "E4"])
             assert state["pending"]["reactor"] == "P1"
         if self.defeated:
@@ -392,7 +393,7 @@ def test_main_completes_default_four_class_battle_with_numeric_inputs(tmp_path):
                       input_reader=reader, output=output.append)
     assert result == 0
     assert clients[0].view["outcome"] == "victory", "\n".join(output[-10:])
-    assert clients[0].view["revision"] == 22
+    assert clients[0].view["revision"] == 27  # M3 ki flurry reduces this seeded fight by two commands.
     assert clients[0].view["short_rests"] == 1
     assert all("【" in prompt and " > " in prompt for prompt in prompts)
     assert any("选择目的地" in prompt for prompt in prompts)

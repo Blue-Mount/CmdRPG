@@ -5,7 +5,7 @@ import re
 
 from .parser import ParseError
 from .render import (render_map, render_menu_actions, render_options,
-                     render_party, render_preview, render_rules)
+                     render_party, render_preview, render_rules, render_growth)
 
 
 class TerminalMenu:
@@ -32,7 +32,7 @@ class TerminalMenu:
         elif self.stage in ("reaction", "recovery"):
             self.stage = "actions" if self.selected else "home"
         if (not client.pending and not client.view.get("pending")
-                and client.view.get("phase") != "combat" and self.stage != "confirm"):
+                and client.view.get("phase") != "combat" and self.stage not in ("confirm","growth")):
             self.stage = "settlement" if client.view.get("phase") == "victory" else "home"
             self.selected = None
 
@@ -50,7 +50,7 @@ class TerminalMenu:
         action = self.action.get("name", "") if self.action else ""
         stages = {"home": "选择角色", "actions": "选择行动或技能", "target": "选择目标",
                   "move": "选择目的地", "confirm": "确认执行", "reaction": "选择反应", "recovery": "恢复回执",
-                  "settlement": "战后结算"}
+                  "settlement": "战后结算", "growth":"成长与装备"}
         return "【%s%s · %s】" % (who, " · " + action if action else "", stages[self.stage])
 
     def build(self):
@@ -67,6 +67,27 @@ class TerminalMenu:
             menu = {"1": ("rest", None), "2": ("read", "party"),
                     "3": ("new_run", None), "4": ("read", "map"),
                     "5": ("read", "log"), "6": ("read", "loot")}
+            menu.update({str(n):("growth",a["id"]) for n,a in enumerate(client.view.get("party",[]),7)})
+            if client.view.get("development"): menu["11"]=("practice",None)
+        elif self.stage == "growth":
+            actor=self.actor()
+            entries=[]
+            if actor['level']<5: entries.append(('固定职业升级',{'type':'levelup','actor':self.selected}))
+            for slot in actor.get('equipment',{}):
+                if actor['equipment'][slot]: entries.append(('卸下 '+actor['equipment_names'][slot],{'type':'equip','actor':self.selected,'slot':slot,'item':None}))
+            for item in actor.get('inventory_items',[]):
+                if actor.get('equipment',{}).get(item['slot'])!=item['id']:
+                    entries.append(('穿戴 '+item['name'],{'type':'equip','actor':self.selected,'slot':item['slot'],'item':item['id']}))
+            for slot in actor.get('max_slots',{}):
+                if actor['resources'].get('arcane_recovery',0)>=int(slot) and actor['slots'].get(slot,0)<actor['max_slots'][slot]: entries.append(('奥术回想：恢复'+slot+'环法术位',{'type':'recover','actor':self.selected,'slot':int(slot)}))
+            names={x['id']:x['name'] for x in actor.get('abilities',[])}
+            for spell in actor.get('known_spells',[]):
+                if spell in actor.get('always_prepared',[]): continue
+                spells=list(actor.get('prepared',[]))
+                if spell in spells: spells.remove(spell); title='取消准备 '
+                else: spells.append(spell); title='准备 '
+                entries.append((title+names.get(spell,spell),{'type':'prepare','actor':self.selected,'spells':spells}))
+            menu={str(n):('manage',entry) for n,entry in enumerate(entries,1)}
         elif self.stage == "actions":
             actor = self.actor()
             if actor:
@@ -89,19 +110,28 @@ class TerminalMenu:
             client.output(self.context())
         if self.stage == "home":
             for n, actor in enumerate(client.view.get("party", []), 1):
-                status = "可操作" if actor["id"] in client.view.get("active", []) else "暂不可操作，可查看技能"
+                status = actor.get("status") or ("可操作" if actor["id"] in client.view.get("active", []) else "暂不可操作，可查看技能")
                 client.output("%s. %s %s  生命 %s/%s  [%s]" % (n, actor["id"], actor["name"], actor["hp"], actor["max_hp"], status))
             client.output("5 地图  6 队伍资源  7 详细日志  8 操作帮助")
             if "9" in menu:
                 client.output("9 战败重试")
         elif self.stage == "settlement":
             client.output("战斗结果：胜利。本版的前哨战已完成，当前没有下一关。")
+            summary = client.view.get("battle_summary", {})
+            if summary:
+                client.output("本场摘要：%s 回合；倒地 %s 次，死亡 %s；消耗法术位 %s、药水 %s；双方累计伤害 %s、治疗 %s。" % (client.view.get("round", "?"), summary.get("downed", 0), summary.get("deaths", 0), summary.get("slots", 0), summary.get("potions", 0), summary.get("damage", 0), summary.get("healing", 0)))
             remaining = client.view.get("short_rests", 0)
             client.output("1 全队短休（剩余 %s 次%s）" % (
-                remaining, "，已用完" if remaining <= 0 else "；一次确认作用于全队"))
+                remaining, "，已用完" if remaining <= 0 else "；仅用于演示，无后续战斗"))
             client.output("2 查看全队资源  3 新开一场战斗（同阵容、新周目）")
             client.output("4 查看地图  5 详细日志  6 战利品说明")
+            client.output("  ".join(n+" "+v+" 成长与装备" for n,(k,v) in menu.items() if k=="growth"))
+            if "11" in menu: client.output("11 沿用当前成长与装备重新演练（全部资源刷新）")
             client.output((client.view.get("settlement") or {}).get("loot_description", "本场没有可拾取战利品，暂时无法搜刮遗体。"))
+        elif self.stage == "growth":
+            client.output(render_growth(self.actor()))
+            for n,(_,entry) in menu.items(): client.output(n+'. '+entry[0])
+            client.output('选择后先预览，c确认；0返回结算。非熟练护甲会阻止施法并使攻击劣势。')
         elif self.stage == "actions":
             client.output(render_menu_actions(client.view, self.selected, compact=self.compact))
             reads = {"map": "地图", "party": "队伍资源", "log": "详细日志", "rules": "技能与规则说明", "help": "操作帮助"}
@@ -124,7 +154,7 @@ class TerminalMenu:
             client.output("9 恢复未确认请求；已保存原请求编号，请先恢复回执。")
         elif self.stage == "confirm":
             client.output("c 确认执行；数字不会执行行动。")
-        client.output("0 返回  q 退出（已执行动作自动保存）")
+        client.output(("0 返回  " if self.stage in ("actions", "target", "move", "confirm") else "") + "q 退出（已执行动作自动保存）")
         self.revision = client.view.get("revision") if self.stage not in ("confirm", "target", "move") else self.revision
 
     def check_revision(self):
@@ -215,6 +245,8 @@ class TerminalMenu:
         elif self.stage in ("target", "move"):
             self.stage = "actions"
             self.action = None
+        elif self.stage == "growth":
+            self.stage = "settlement"
         elif self.stage == "actions":
             self.stage = "home"
             self.selected = None
@@ -279,6 +311,10 @@ class TerminalMenu:
         if kind == "actor":
             self.check_revision()
             self.select_actor(value)
+        elif kind == "growth":
+            self.check_revision(); self.selected=value; self.stage='growth'; self.show()
+        elif kind == "manage":
+            self.check_revision(); self.action={'name':value[0]}; self.preview(value[1],'growth'); self.show()
         elif kind == "action":
             self.select_action(value)
         elif kind == "entry":
@@ -314,10 +350,19 @@ class TerminalMenu:
             else:
                 self.client.output("影响：" + ("对离开触及的敌人进行一次武器攻击；消耗反应 1。" if value == "accept" else "不进行攻击，不消耗反应；继续敌方移动。"))
             self.show()
+        elif kind == "practice":
+            self.check_revision(); self.action={"name":"重新演练"}; self.preview({"type":"practice"},"settlement"); self.show()
         elif kind == "rest":
             self.check_revision()
+            if self.client.view.get("short_rests", 0) <= 0:
+                self.action = None
+                raise ParseError("全队短休不可用：短休次数已用完。")
             self.action = {"name": "全队短休"}
-            self.preview({"type": "rest", "kind": "short"}, "settlement")
+            try:
+                self.preview({"type": "rest", "kind": "short"}, "settlement")
+            except Exception:
+                self.action = None
+                raise
         elif kind == "new_run":
             self.check_revision()
             self.return_stage = "settlement"

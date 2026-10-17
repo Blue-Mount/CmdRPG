@@ -85,7 +85,7 @@ class TerminalRenderTests(unittest.TestCase):
         self.assertEqual(rows[1].split("|")[2], "P3*")
         self.assertEqual(rows[2].split("|")[1], " ! ")
         self.assertTrue(all("E1" not in row and "E2" not in row for row in rows))
-        self.assertIn("存活敌人：当前无", text)
+        self.assertIn("可见敌人：当前无可见敌人", text)
         self.assertIn("阵亡敌人：E1 前哨守卫 B2；E2 阵亡射手 A3", text)
         self.assertEqual(view["enemies"][0]["conditions"], ["dead"])
 
