@@ -132,6 +132,10 @@ class Client:
             else:
                 receipt = self.transport.write(request["run_id"], request["operation"], deepcopy(request["payload"]))
         except TransportError as exc:
+            if exc.code == 'client_upgrade_required':
+                # An earlier attempt may already have committed. A compatibility
+                # rejection must not discard the original receipt journal.
+                raise
             if exc.retryable:
                 self.output("%s 请求 %s 已保留；输入 resend 或数字 9 重发同一请求。" % (
                     exc.message, request["payload"]["command_id"]))

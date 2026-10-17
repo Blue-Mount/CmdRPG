@@ -33,6 +33,8 @@ python -m client --run <周目ID>
 
 ## 开发与 HTTP 服务
 
+远程玩家可使用独立安装目录的一键入口，启动时自动同步客户端及资源，复用本机 DPAPI 凭据并恢复原周目；见 [客户端安装、自动发布与更新](docs/client-updates.md)。开发仓库不参与玩家自动覆盖，Git 推送不自动部署服务器。
+
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt

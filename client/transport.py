@@ -6,6 +6,7 @@ The caller owns command IDs. Neither adapter retries a write with a new ID.
 import json
 import ipaddress
 import math
+import os
 import socket
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit, quote
@@ -112,6 +113,7 @@ class HTTPTransport:
         request = Request(
             self.base_url + path, data=data, method=method,
             headers={"Authorization": "Bearer " + self._token,
+                     "X-CmdRPG-Client-Version": os.environ.get('CMDRPG_CLIENT_VERSION', '0'),
                      "Accept": "application/json", "Content-Type": "application/json"},
         )
         try:

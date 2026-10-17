@@ -11,6 +11,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 from server.storage import Repository, RepositoryError
+from server.client_updates import read_channel, router as client_update_router
+from runtime.updater import UpdateError
 
 
 class RequestBody(BaseModel):
@@ -41,7 +43,8 @@ class ReactionBody(WriteBody):
     choice: Literal["accept", "decline"]
 
 
-def create_app(database_path=None, token=None, *, repository: Repository | None = None) -> FastAPI:
+def create_app(database_path=None, token=None, *, repository: Repository | None = None,
+               release_directory=None, minimum_client=None) -> FastAPI:
     """Create an API with independent configuration and fail-closed game access.
 
     An omitted token reads CMDRPG_TOKEN; an explicit empty token disables access.
@@ -51,6 +54,10 @@ def create_app(database_path=None, token=None, *, repository: Repository | None 
     configured_token = os.environ.get("CMDRPG_TOKEN") if token is None else token
     database = database_path or os.environ.get("CMDRPG_DB", "data/game.sqlite3")
     repository_lock = threading.Lock()
+    releases = release_directory or os.environ.get('CMDRPG_CLIENT_RELEASES')
+    minimum = int(os.environ.get('CMDRPG_MIN_CLIENT_VERSION', '0') if minimum_client is None else minimum_client)
+    if minimum < 0:
+        raise ValueError('Minimum client version must be nonnegative')
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -60,6 +67,8 @@ def create_app(database_path=None, token=None, *, repository: Repository | None 
 
     app = FastAPI(title="CmdRPG", version="0.1.0", lifespan=lifespan)
     app.state.repository = repository
+    if releases:
+        app.include_router(client_update_router(releases))
 
     @app.exception_handler(RepositoryError)
     async def repository_error(_request: Request, exc: RepositoryError):
@@ -68,7 +77,8 @@ def create_app(database_path=None, token=None, *, repository: Repository | None 
             error["current_revision"] = exc.revision
         return JSONResponse(status_code=exc.status_code, content={"error": error})
 
-    def authenticated(authorization: Annotated[str | None, Header()] = None) -> Repository:
+    def authenticated(authorization: Annotated[str | None, Header()] = None,
+                      x_cmdrpg_client_version: Annotated[str | None, Header()] = None) -> Repository:
         if not configured_token:
             raise HTTPException(503, detail={"code": "token_not_configured",
                                             "message": "服务尚未配置 CMDRPG_TOKEN。"})
@@ -77,6 +87,20 @@ def create_app(database_path=None, token=None, *, repository: Repository | None 
                 or not hmac.compare_digest(presented.encode("utf-8"), configured_token.encode("utf-8"))):
             raise HTTPException(401, detail={"code": "unauthorized", "message": "需要有效的 Bearer 凭据。"},
                                 headers={"WWW-Authenticate": "Bearer"})
+        required = minimum
+        if releases:
+            try:
+                required = max(required, read_channel(releases)['minimum'])
+            except (OSError, ValueError, UpdateError):
+                raise HTTPException(503, detail={'code': 'release_unavailable',
+                                                'message': '客户端发布信息不可用，请稍后重试。'})
+        try:
+            supplied = int(x_cmdrpg_client_version or '0')
+        except ValueError:
+            supplied = 0
+        if supplied < required:
+            raise HTTPException(426, detail={'code': 'client_upgrade_required',
+                'message': '服务器要求客户端版本 %s；请关闭游戏并升级后再连接。' % required})
         with repository_lock:
             if app.state.repository is None:
                 app.state.repository = Repository(database)

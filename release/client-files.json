@@ -1,0 +1,14 @@
+[
+  "client/__init__.py",
+  "client/__main__.py",
+  "client/cli.py",
+  "client/menu.py",
+  "client/parser.py",
+  "client/render.py",
+  "client/transport.py",
+  "runtime/__init__.py",
+  "runtime/updater.py",
+  "runtime/launcher.py",
+  "runtime/Start-Remote.ps1",
+  "runtime/Remote-Token.ps1"
+]
