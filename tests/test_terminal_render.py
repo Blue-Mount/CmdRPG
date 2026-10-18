@@ -7,6 +7,7 @@ import unittest
 from client.render import (inspect, render_actions, render_map,
                            render_menu_actions, render_options, render_preview,
                            render_view)
+from client.render import render_event_summary
 from core.engine import Engine
 
 
@@ -41,6 +42,28 @@ def visible_view():
 
 
 class TerminalRenderTests(unittest.TestCase):
+    def test_compact_map_retains_tactical_facts_and_shortens_details(self):
+        view = visible_view()
+        view['map']['heights']['B2'] = 1.5
+        compact = render_map(view, 'P3', detailed=False)
+        self.assertIn('P3*', compact)
+        self.assertIn('B2 高度1.5米', compact)
+        self.assertIn('危险位置：A3', compact)
+        self.assertIn('B1 断墙门洞', compact)
+        self.assertIn('E1 前哨守卫 生命13/13', compact)
+        self.assertEqual(compact.count('    | A | B | C | D |'), 2)
+        self.assertNotIn('东西通路。', compact)
+        self.assertIn('东西通路。', render_map(view, 'P3'))
+        self.assertLess(len(compact), len(render_map(view, 'P3')))
+
+    def test_event_summary_keeps_early_casualty_without_losing_log_reference(self):
+        events = [{'seq': 1, 'kind': 'downed', 'text': 'P1 倒地'}]
+        events += [{'seq': n, 'kind': 'damage', 'text': '普通伤害'} for n in range(2, 15)]
+        summary = render_event_summary(events)
+        self.assertIn('P1 倒地', summary)
+        self.assertIn('log 10', summary)
+        self.assertEqual(len(summary.splitlines()), 7)
+
     def test_fixed_ascii_cells_with_chinese_names_outside_grid(self):
         text = render_map(visible_view(), selected="P3")
         rows = [line for line in text.splitlines() if re.match(r"\s*\d+ \|", line)]

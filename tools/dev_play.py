@@ -1,16 +1,13 @@
-"""Isolated M3 playground; never reads the normal client config or database."""
+"""Isolated growth/campaign playground; never reads player config or databases."""
 
 import argparse
 from pathlib import Path
-import secrets
-import socket
+import sys
 import tempfile
-import threading
-import time
 import uuid
 
 from core.engine import Engine
-from server.storage import Repository
+from saves.storage import Repository
 
 
 class PlaygroundEngine(Engine):
@@ -18,7 +15,9 @@ class PlaygroundEngine(Engine):
         super().__init__()
         self.levels, self.loadouts = levels, loadouts
 
-    def new_run(self, name="M3开发试玩", templates=None, seed=None):
+    def new_run(self, name="M3开发试玩", templates=None, seed=None, *, campaign=False):
+        if campaign:
+            return super().new_run(name, templates, seed, campaign=True)
         state = super().new_run(
             name, templates, seed, levels=self.levels, loadouts=self.loadouts
         )
@@ -28,11 +27,15 @@ class PlaygroundEngine(Engine):
 
 
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--level", type=int, choices=range(1, 6), default=5)
     parser.add_argument("--levels", help="四人独立等级，例如 2,3,4,5")
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument('--campaign', action='store_true', help='五站完整战役雏形，从1级开始')
     parser.add_argument(
         "--equip",
         action="append",
@@ -45,10 +48,9 @@ def main(argv=None):
         default=[],
         help="P3:magic_missile,fireball；牧师须保留领域恒定法术",
     )
-    parser.add_argument(
-        "--http", action="store_true", help="启动独立回环服务并使用真实HTTP终端"
-    )
     args = parser.parse_args(argv)
+    if args.campaign and (args.levels or args.equip or args.prepare):
+        parser.error('战役从1级起步，不能指定开发局等级、装备或法术准备。')
     try:
         levels = (
             [int(x) for x in args.levels.split(",")]
@@ -75,16 +77,16 @@ def main(argv=None):
                     spells=spells.split(",") if spells else [],
                 )
             )
-        engine = PlaygroundEngine(levels, loadouts)
+        engine = Engine() if args.campaign else PlaygroundEngine(levels, loadouts)
         # Validate before allocating any on-disk save.
-        engine.new_run(templates=args.classes.split(","), seed=args.seed)
+        engine.new_run(templates=args.classes.split(","), seed=args.seed, campaign=args.campaign)
     except Exception as exc:
         parser.error(str(exc))
-    directory = Path(tempfile.mkdtemp(prefix="CmdRPG-M3-"))
+    directory = Path(tempfile.mkdtemp(prefix="CmdRPG-M4-" if args.campaign else 'CmdRPG-M3-'))
     database, config = directory / "play.sqlite3", directory / "client.json"
     store = Repository(database, engine=engine)
     receipt = store.create_run(
-        "M3开发试玩", args.classes.split(","), args.seed, str(uuid.uuid4())
+        "M4战役试玩" if args.campaign else 'M3开发试玩', args.classes.split(","), args.seed, str(uuid.uuid4()), campaign=args.campaign
     )
     run_id = receipt["run_id"]
     print(
@@ -94,36 +96,8 @@ def main(argv=None):
     from client.cli import main as client_main
 
     common = ["--config", str(config), "--run", run_id]
-    if not args.http:
-        store.close()
-        return client_main(["--db", str(database), *common])
-    import uvicorn
-    from server.app import create_app
-
-    token = secrets.token_urlsafe(32)
-    sock = socket.socket()
-    sock.bind(("127.0.0.1", 0))
-    port = sock.getsockname()[1]
-    server = uvicorn.Server(
-        uvicorn.Config(create_app(repository=store, token=token), log_level="error")
-    )
-    thread = threading.Thread(
-        target=server.run, kwargs={"sockets": [sock]}, daemon=True
-    )
-    thread.start()
-    try:
-        deadline = time.monotonic() + 10
-        while not server.started:
-            if not thread.is_alive() or time.monotonic() > deadline:
-                raise RuntimeError("开发HTTP服务启动失败")
-            time.sleep(0.02)
-        return client_main(
-            ["--url", f"http://127.0.0.1:{port}", "--token=" + token, *common]
-        )
-    finally:
-        server.should_exit = True
-        thread.join(timeout=5)
-        sock.close()
+    store.close()
+    return client_main(["--db", str(database), *common])
 
 
 if __name__ == "__main__":

@@ -1,2 +1,1 @@
-fastapi==0.143.0
-uvicorn==0.54.0
+# Local gameplay and save sync use Python 3.11+ standard library only.

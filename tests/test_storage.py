@@ -11,7 +11,7 @@ import threading
 import unittest
 import uuid
 
-from server.storage import Repository, RepositoryError, backup_database
+from saves.storage import Repository, RepositoryError, backup_database
 
 
 class SnapshotEngine:

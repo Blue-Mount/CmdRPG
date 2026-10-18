@@ -128,12 +128,12 @@ class Repository:
             raise RepositoryError("run_not_found", "找不到该周目。", 404)
         return json.loads(row["state_json"])
 
-    def _call(self, method: str, *args):
+    def _call(self, method: str, *args, **kwargs):
         try:
-            return getattr(self.engine, method)(*args)
+            return getattr(self.engine, method)(*args, **kwargs)
         except Exception as exc:
             # GameError is exported by core.engine. Delayed import keeps fake
-            # engines usable and local persistence independent of the HTTP stack.
+            # engines usable and local persistence independent of terminal interaction.
             from core.engine import GameError
             if not isinstance(exc, GameError):
                 raise
@@ -166,15 +166,19 @@ class Repository:
         )
 
     def create_run(self, name: str = "远征队", templates: list[str] | None = None,
-                   seed: int | None = None, command_id: str | None = None) -> dict:
+                   seed: int | None = None, command_id: str | None = None, campaign: bool = False) -> dict:
         command_id = _command_id(command_id)
         request = {"operation": "create", "name": name, "templates": templates, "seed": seed}
+        if type(campaign) is not bool:
+            raise RepositoryError('invalid_campaign', 'campaign 须为布尔值。')
+        if campaign:
+            request['campaign'] = True
         _json(request)
         with self._transaction():
             receipt = self._replay(command_id, request)
             if receipt is not None:
                 return receipt
-            state = self._call("new_run", name, templates, seed)
+            state = self._call("new_run", name, templates, seed, **({'campaign': True} if campaign else {}))
             view = self._call("view", state)
             run_id = state["id"]
             events = state.get("event_log", [])

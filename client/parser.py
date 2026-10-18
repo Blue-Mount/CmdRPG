@@ -36,6 +36,12 @@ def parse_action(tokens):
         raise ParseError("请指定行动，例如 preview attack P1 E1。")
     kind = tokens[0].lower()
     args = tokens[1:]
+    if kind == 'camp' and not args:
+        return {'type': 'camp'}
+    if kind == 'travel' and len(args) == 1:
+        return {'type': 'travel', 'destination': args[0]}
+    if kind == 'buy' and len(args) == 2:
+        return {'type': 'buy', 'actor': _actor(args[0]), 'item': args[1]}
     if kind == 'practice' and not args: return {'type':'practice'}
     if kind == 'recover' and len(args)==2 and args[1] in ('1','2','3'):
         return {'type':'recover','actor':_actor(args[0]),'slot':int(args[1])}

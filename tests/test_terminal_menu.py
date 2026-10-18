@@ -17,7 +17,7 @@ import pytest
 from client.cli import Client, main, read_json
 from client.transport import LocalTransport, TransportError
 from core.engine import Engine, GameError
-from server.storage import Repository, RepositoryError
+from saves.storage import Repository, RepositoryError
 from tools.play_slice import choose
 
 
@@ -123,6 +123,8 @@ def test_home_reveals_every_characters_full_chinese_skill_list(session):
         output.clear()
         select_actor(client, actor_id)
         display = "\n".join(output)
+        assert '文字地图' not in display
+        assert client.ui.compact
         for entry in actor(client, actor_id)["menu_actions"]:
             assert entry["name"] in display
         assert "成本" in display
@@ -408,7 +410,6 @@ class TerminalProcess:
 
     def __init__(self, args):
         environment = dict(os.environ, PYTHONUTF8="1")
-        environment.pop("CMDRPG_URL", None)
         self.process = subprocess.Popen(
             [sys.executable, "-S", "-u", "-m", "client", *args],
             cwd=Path(__file__).resolve().parents[1], env=environment,

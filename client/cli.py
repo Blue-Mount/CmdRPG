@@ -1,6 +1,7 @@
-"""Interactive terminal client with revision-bound previews and durable retries."""
+"""Local terminal game with revision-bound previews and durable saves."""
 
 import argparse
+from contextlib import ExitStack
 from copy import deepcopy
 import json
 import os
@@ -11,15 +12,16 @@ import uuid
 
 from .parser import ParseError, parse_line
 from .render import (inspect, render_actions, render_events, render_map,
-                     render_party, render_preview, render_view)
-from .transport import HTTPTransport, LocalTransport, TransportError
+                     render_party, render_preview, render_view, render_event_summary)
+from .transport import LocalTransport, TransportError
 from .menu import TerminalMenu
 
 
 HELP = """中文游玩：选角色编号 → 选行动/技能编号 → 选目标编号或目的地 → 自动预览 → c 确认。
 0 返回并取消当前预览；q 退出。数字只选择当前列表条目；多目标可输入 1,2,3。
-当前可玩内容：一场原创前哨战，战士、武僧、法师、牧师固定成长1–5级。
-胜利后进入战后结算：1 全队短休（一次确认），3 同阵容新周目；当前没有下一关或尸体掉落。
+当前可玩内容：独立前哨战，或五站远征战役；四职业从1级成长至5级，含路线分支与最终Boss。
+首页9或战后12新开战役，保留旧周目。战役胜利后13/14选择路线，15营地休整，16商店。
+地图上下均有坐标；map 展开地形与地标，party 查资源，技能与规则菜单查完整说明。
 7–10 成长/装备/准备法术；独立开发局11号沿用当前组合重新演练。
 以下命令保留为快捷入口：
 resume                   恢复并显示局势
@@ -44,8 +46,11 @@ do 1                     执行指定预览；局势变更后必须重新预览
 end P1                   结束该队员操作
 react accept / react decline  接受或拒绝待选反应
 rest short               战斗结束后短休
+preview camp             营地休整（20金币，每站一次，全队复苏与资源恢复）
+preview travel road      前往当前可选路线；不可跳关
+preview buy P1 greatsword 购买药水/装备到指定队员背包
 retry                    战败后回到战前状态
-resend                   用原请求 ID 恢复网络中断的写入回执
+resend                   用原操作 ID 恢复意外退出时的存档回执
 log 10                   最近十条事件及计算信息
 help / quit              帮助 / 离开；已提交动作自动保存
 完整行动也可直接输入，例如 attack P1 E1；合法性由核心验证。
@@ -101,7 +106,7 @@ class Client:
         saved = read_json(self.journal_path) if self.journal_path else None
         if saved:
             if saved.get("scope") != self.scope:
-                raise ValueError("有另一连接的未确认请求；请用原连接执行 resend 后再切换。")
+                raise ValueError("有另一存档的未确认操作；请用原存档执行 resend 后再切换。")
             if (saved.get("operation") not in ("create", "commands", "reactions", "retry")
                     or not isinstance(saved.get("payload"), dict)
                     or not saved["payload"].get("command_id")):
@@ -117,7 +122,7 @@ class Client:
     def _record_pending(self, value):
         if self.journal_path:
             if self.journal_path.exists() and not self.pending:
-                raise ParseError("另一个终端留下了未确认请求；先关闭并用原连接恢复，或使用独立 --config。")
+                raise ParseError("另一个终端留下了未确认请求；先关闭并用原存档恢复，或使用独立 --config。")
             write_json(self.journal_path, value)
         self.pending = value
         self._default_menu()
@@ -131,17 +136,13 @@ class Client:
     def _send_pending(self):
         request = self.pending
         if not request:
-            raise ParseError("没有未确认请求。retry 用于战败重试，resend 用于网络回执恢复。")
+            raise ParseError("没有未确认请求。retry 用于战败重试，resend 用于存档回执恢复。")
         try:
             if request["operation"] == "create":
                 receipt = self.transport.create_run(deepcopy(request["payload"]))
             else:
                 receipt = self.transport.write(request["run_id"], request["operation"], deepcopy(request["payload"]))
         except TransportError as exc:
-            if exc.code == 'client_upgrade_required':
-                # An earlier attempt may already have committed. A compatibility
-                # rejection must not discard the original receipt journal.
-                raise
             if exc.retryable:
                 self.output("%s 请求 %s 已保留；输入 resend 或数字 9 重发同一请求。" % (
                     exc.message, request["payload"]["command_id"]))
@@ -170,9 +171,7 @@ class Client:
         # Show its original result, then refresh the latest filtered view.
         if receipt.get("events"):
             events = receipt["events"]
-            self.output(render_events(events[-6:]))
-            if len(events) > 6:
-                self.output("还有 %s 条事件，可从菜单查看详细日志。" % (len(events) - 6))
+            self.output(render_event_summary(events))
         try:
             self.refresh(display=False)
         except TransportError:
@@ -202,10 +201,12 @@ class Client:
                               "operation": operation, "payload": payload})
         return self._send_pending()
 
-    def create(self, name="远征队", templates=None, seed=None):
+    def create(self, name="远征队", templates=None, seed=None, campaign=False):
         if self.pending:
             raise ParseError("先恢复未确认的请求。")
         payload = {"name": name, "templates": templates, "command_id": str(uuid.uuid4())}
+        if campaign:
+            payload['campaign'] = True
         if seed is not None:
             payload["seed"] = seed
         self._record_pending({"scope": self.scope, "run_id": None,
@@ -233,8 +234,7 @@ class Client:
         result = self.transport.preview(self.run_id, command)
         if result.get("revision") is not None:
             revision = result["revision"]
-        # The repository includes the exact preview revision. Older servers are
-        # supported by requiring the view before/after the preview to agree.
+        # Require the view before and after the preview to agree.
         self.refresh(display=False)
         if self.view["revision"] != revision:
             raise ParseError("预览期间局势已改变；请重新预览。")
@@ -367,7 +367,7 @@ def install_completion(client):
 
 
 def argument_parser():
-    parser = argparse.ArgumentParser(description="四人小队文字战术切片（M1/M2）")
+    parser = argparse.ArgumentParser(description="四人小队文字战术游戏：独立演练与五站战役")
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--setup", action="store_true", help="交互选择队伍名与四个职业")
     selection.add_argument("--new", action="store_true", help="开始新周目")
@@ -376,11 +376,9 @@ def argument_parser():
     parser.add_argument("--name", default="远征队", help="新队伍名称")
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric", help="恰好四个职业，允许重复")
     parser.add_argument("--seed", type=int, help="新周目随机种子")
+    parser.add_argument("--campaign", action="store_true", help="新开五站远征战役（保留旧周目）")
     parser.add_argument("--db", help="本地 SQLite 路径（默认 CMDRPG_DB 或 data/game.sqlite3）")
-    parser.add_argument("--url", help="远程服务地址（或 CMDRPG_URL）")
-    parser.add_argument("--token", help="远程 Bearer 凭据；推荐使用 CMDRPG_TOKEN 环境变量")
-    parser.add_argument("--timeout", type=float, default=10, help="HTTP 超时秒数")
-    parser.add_argument("--config", default=os.environ.get("CMDRPG_CLIENT_CONFIG", "data/client.json"), help="上次连接记录路径")
+    parser.add_argument("--config", default=os.environ.get("CMDRPG_CLIENT_CONFIG", "data/client.json"), help="本机存档与周目记录路径")
     return parser
 
 
@@ -393,32 +391,28 @@ def main(argv=None, *, input_reader=input, output=print):
                 stream.reconfigure(encoding="utf-8")
     parser = argument_parser()
     args = parser.parse_args(argv)
-    if args.setup:
+    if args.campaign and (args.run or args.list_runs):
+        parser.error('--campaign 不能与 --run 或 --list-runs 同时使用。')
+    if args.setup or args.campaign:
         args.new = True
     templates = [name.strip() for name in args.classes.split(",")]
     if args.new and (len(templates) != 4 or any(name not in ("fighter", "monk", "wizard", "cleric") for name in templates)):
         parser.error("--classes 须含四个 fighter/monk/wizard/cleric 职业，允许重复。")
-    if args.url and args.db:
-        parser.error("--url 与 --db 不能同时指定。")
     config_path = Path(args.config)
     journal_path = config_path.with_name(config_path.stem + ".pending.json")
     transport = None
+    locks = ExitStack()
     try:
         saved = read_json(config_path) or {}
         previous = saved.get("last", {})
         if not isinstance(previous, dict):
             raise ValueError("客户端记录格式错误：last 必须是对象。")
-        url = args.url or (os.environ.get("CMDRPG_URL") if not args.db else None)
-        if not url and not args.db and previous.get("mode") == "remote":
-            url = previous.get("url")
-        if url:
-            transport = HTTPTransport(url, args.token or os.environ.get("CMDRPG_TOKEN"), args.timeout)
-            scope = {"mode": "remote", "url": transport.base_url}
-        else:
-            database_path = args.db or os.environ.get("CMDRPG_DB") or (previous.get("db") if previous.get("mode") == "local" else None) or "data/game.sqlite3"
-            database_path = str(Path(database_path).resolve())
-            transport = LocalTransport(database_path)
-            scope = {"mode": "local", "db": database_path}
+        database_path = args.db or os.environ.get("CMDRPG_DB") or (previous.get("db") if previous.get("mode") == "local" else None) or "data/game.sqlite3"
+        database_path = str(Path(database_path).resolve())
+        from saves.locking import database_lock
+        locks.enter_context(database_lock(database_path))
+        transport = LocalTransport(database_path)
+        scope = {"mode": "local", "db": database_path}
         if args.list_runs:
             for run in transport.list_runs():
                 output("%s  %s  版本 %s" % (run["id"], run["name"], run["revision"]))
@@ -426,7 +420,7 @@ def main(argv=None, *, input_reader=input, output=print):
         run_id = args.run or (previous.get("run_id") if not args.new and all(previous.get(key) == value for key, value in scope.items()) else None)
 
         def save_run(current_id):
-            # Only run ID and connection address are persisted, never a token.
+            # Save only the local database path and selected run.
             write_json(config_path, {"last": dict(scope, run_id=current_id)})
 
         client = Client(transport, run_id=run_id, output=output, journal_path=journal_path, scope=scope, on_run=save_run)
@@ -462,7 +456,7 @@ def main(argv=None, *, input_reader=input, output=print):
                 if input_reader("输入 c 确认建队，其他输入取消 > ").strip().lower() != "c":
                     output("已取消建队。")
                     return 0
-            client.create(args.name, templates, args.seed)
+            client.create(args.name, templates, args.seed, campaign=args.campaign)
         install_completion(client)
         while True:
             try:
@@ -478,6 +472,7 @@ def main(argv=None, *, input_reader=input, output=print):
     finally:
         if transport:
             transport.close()
+        locks.close()
 
 
 if __name__ == "__main__":

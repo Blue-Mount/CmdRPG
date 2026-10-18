@@ -58,7 +58,7 @@ R 编号是规则验收项；实现测试函数可能覆盖多项。`tests/test_
 | R09 | 离开敌人近战范围触发可保存的借机反应；选择后从中断处继续 | 等待时读写、接受 / 拒绝、已走距离、倒地中断、重连 | 反应范围和触发条件待 BG3 对照；仅实现此反应类型 |
 | R10 | 一场击败全敌胜利；全队失去继续作战能力判负；重试恢复战前资源和 RNG | 战斗结束、重试、网络重放与游戏重试的区别 | 属于项目流程，不是 BG3 读档实现 |
 | R11 | 胜利后短休限两次，恢复半最大生命（向上取整）与回气；不恢复普通法术位或药水 | 战斗中短休拒绝；次数耗尽；资源恢复类型 | 取整待测；没有长休、营地或后续遭遇；不等于完整休整系统 |
-| R12 | 预览纯读；随机状态、隐藏位置与战前快照不进入玩家视图或事件 details | 同命令重复预览、隐藏敌人事件、失败无变更 | 服务器信息边界为项目约束 |
+| R12 | 预览纯读；随机状态、隐藏位置与战前快照不进入玩家视图或事件 details | 同命令重复预览、隐藏敌人事件、失败无变更 | 隐藏游戏状态边界为项目约束 |
 | C01 | 重复 JSON 键和非法 JSON 数值阻止加载 | `test_rejects_duplicate_json_keys_including_nested_keys` / `test_rejects_wrong_dimensions_and_non_finite_numbers` | 自动内容测试 |
 | C02 | 引用、effect 白名单、类型 / 范围与 1 级边界阻止非法内容 | `test_rejects_missing_weapon_ability_and_enemy_references` / `test_rejects_unimplemented_effect_and_invalid_effect_metadata` / `test_rejects_future_growth_and_ki_resource` | 自动内容测试 |
 | C03 | 出生点不重叠，安全步行路径覆盖出生点、敌人与所有地标 | `test_rejects_spawn_count_overlap_walls_and_hazards` / `test_rejects_unreachable_landmark_and_enemy` / `test_rejects_platform_without_traversable_height_step` | 自动内容测试；只保证拓扑合法，不保证战斗平衡 |

@@ -106,7 +106,7 @@ def test_full_health_warnings_and_no_zero_heal_event(engine, state):
 
 
 def test_explicit_run_does_not_replay_pending_create(tmp_path):
-    from server.storage import Repository
+    from saves.storage import Repository
     from client.cli import write_json
     db, config = tmp_path / "game.sqlite3", tmp_path / "config.json"
     with Repository(db) as repository:
@@ -124,7 +124,7 @@ def test_explicit_run_does_not_replay_pending_create(tmp_path):
 
 
 def test_list_runs_is_read_only_and_resume_ignores_classes(tmp_path):
-    from server.storage import Repository
+    from saves.storage import Repository
     db, config = tmp_path / "game.sqlite3", tmp_path / "config.json"
     with Repository(db) as repository:
         old = repository.create_run("existing", seed=42, command_id="create")
@@ -185,7 +185,7 @@ def test_random_legal_commands_preserve_invariants(seed):
 
 
 def test_setup_cancel_creates_no_run(tmp_path):
-    from server.storage import Repository
+    from saves.storage import Repository
     db = tmp_path / "setup.sqlite3"
     inputs = iter(["队伍", "1", "2", "3", "4", "cancel"])
     assert main(["--setup","--db",str(db),"--config",str(tmp_path/"config.json")],input_reader=lambda _:next(inputs),output=lambda _:None) == 0

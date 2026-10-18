@@ -1,4 +1,4 @@
-"""Menus must agree with legal previews and preserve private server state."""
+"""Menus must agree with legal previews and preserve private game state."""
 
 from copy import deepcopy
 import json
@@ -8,7 +8,7 @@ import pytest
 
 from core import dice, spatial
 from core.engine import Engine, GameError
-from server.storage import Repository
+from saves.storage import Repository
 
 
 @pytest.fixture

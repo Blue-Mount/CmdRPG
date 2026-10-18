@@ -10,7 +10,7 @@ from urllib.error import HTTPError, URLError
 from client.cli import Client, main, read_json
 from client.parser import ParseError, parse_line
 from client.render import inspect, render_actions, render_map, render_view
-from client.transport import HTTPTransport, LocalTransport, TransportError
+from client.transport import LocalTransport, TransportError
 
 
 def make_view(revision=0):
@@ -145,7 +145,7 @@ class ClientTests(unittest.TestCase):
     def test_pending_survives_restart_and_keeps_same_id(self):
         with tempfile.TemporaryDirectory() as directory:
             journal = Path(directory) / "client.pending.json"
-            scope = {"mode": "remote", "url": "https://game.example"}
+            scope = {"mode": "local", "db": "game.sqlite3"}
             first = Client(self.transport, "test-run", make_view(), output=self.output.append, journal_path=journal, scope=scope)
             self.transport.fail_after_commit = True
             first.handle("end P1")
@@ -158,14 +158,14 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(self.transport.view["revision"], 1)
             self.assertFalse(journal.exists())
 
-    def test_pending_refuses_different_server_or_run(self):
+    def test_pending_refuses_different_database_or_run(self):
         with tempfile.TemporaryDirectory() as directory:
             journal = Path(directory) / "pending.json"
-            scope = {"mode": "remote", "url": "https://game.example"}
+            scope = {"mode": "local", "db": "game.sqlite3"}
             first = Client(self.transport, "test-run", make_view(), output=self.output.append, journal_path=journal, scope=scope)
             self.transport.fail_after_commit = True
             first.handle("end P1")
-            for different_scope, run_id in (({"mode": "remote", "url": "https://other.example"}, None), (scope, "other-run")):
+            for different_scope, run_id in (({"mode": "local", "db": "other.sqlite3"}, None), (scope, "other-run")):
                 client = Client(self.transport, run_id, output=self.output.append, journal_path=journal, scope=different_scope)
                 with self.assertRaises(ValueError):
                     client.load_pending()
@@ -187,88 +187,14 @@ class ClientTests(unittest.TestCase):
         self.assertEqual(self.transport.writes[-1][1], "reactions")
         self.assertEqual(self.transport.writes[-1][2]["choice"], "decline")
 
-    def test_main_persists_only_connection_and_run_not_token(self):
-        with tempfile.TemporaryDirectory() as directory:
-            config = Path(directory) / "client.json"
-            with patch("client.cli.HTTPTransport", return_value=self.transport):
-                self.transport.base_url = "https://game.example"
-                result = main(["--new", "--url", "https://game.example", "--token", "secret-value", "--config", str(config)],
-                              input_reader=lambda prompt: "quit", output=self.output.append)
-            self.assertEqual(result, 0)
-            self.assertEqual(read_json(config), {"last": {"mode": "remote", "url": "https://game.example", "run_id": "test-run"}})
-            self.assertNotIn("secret-value", config.read_text(encoding="utf-8"))
-            self.assertNotIn("secret-value", "\n".join(self.output))
 
 
 class TransportTests(unittest.TestCase):
-    def test_http_bearer_and_json_payload(self):
-        calls = []
 
-        def opener(request, timeout):
-            calls.append((request, timeout))
-            return io.BytesIO(b'{"revision": 3}')
 
-        transport = HTTPTransport("https://game.example", "secret", timeout=4, opener=opener)
-        payload = {"command_id": "fixed-id", "expected_revision": 2, "command": {"type": "end", "actor": "P1"}}
-        self.assertEqual(transport.write("abc", "commands", payload), {"revision": 3})
-        request, timeout = calls[0]
-        self.assertEqual(request.full_url, "https://game.example/runs/abc/commands")
-        self.assertEqual(request.get_header("Authorization"), "Bearer secret")
-        self.assertEqual(json.loads(request.data), payload)
-        self.assertEqual(timeout, 4)
 
-    def test_http_error_is_structured_and_redacts_token(self):
-        def opener(request, timeout):
-            raise HTTPError(request.full_url, 409, "Conflict", {}, io.BytesIO(
-                b'{"detail":{"code":"revision_conflict","message":"secret invalid","revision":9}}'))
 
-        transport = HTTPTransport("https://game.example", "secret", opener=opener)
-        with self.assertRaises(TransportError) as context:
-            transport.get_view("abc")
-        self.assertEqual(context.exception.status_code, 409)
-        self.assertEqual(context.exception.revision, 9)
-        self.assertFalse(context.exception.retryable)
-        self.assertNotIn("secret", context.exception.message)
 
-    def test_network_error_marks_result_uncertain(self):
-        def opener(request, timeout):
-            raise URLError("connection failed with secret")
-
-        transport = HTTPTransport("https://game.example", "secret", opener=opener)
-        with self.assertRaises(TransportError) as context:
-            transport.write("abc", "commands", {"command_id": "one"})
-        self.assertTrue(context.exception.retryable)
-        self.assertNotIn("secret", context.exception.message)
-
-    def test_base_url_rejects_credentials_and_token_control_characters(self):
-        for url in ("ftp://game.example", "https://user:password@game.example", "https://game.example?token=secret"):
-            with self.subTest(url=url), self.assertRaises(ValueError):
-                HTTPTransport(url, "secret")
-        with self.assertRaises(ValueError):
-            HTTPTransport("https://game.example", "secret\r\nheader")
-
-    def test_http_only_permits_loopback_without_sending_credentials(self):
-        calls = []
-
-        def opener(request, timeout):
-            calls.append(request)
-            return io.BytesIO(b'{}')
-
-        for url in ("http://game.example", "http://192.168.1.10:8000", "http://8.8.8.8", "http://localhost.example"):
-            with self.subTest(url=url), self.assertRaisesRegex(ValueError, "HTTPS"):
-                HTTPTransport(url, "secret", opener=opener)
-        self.assertEqual(calls, [])
-        for url in ("http://localhost:8000", "http://127.0.0.1:8000", "http://[::1]:8000"):
-            with self.subTest(url=url):
-                transport = HTTPTransport(url, "secret", opener=opener)
-                transport.get_view("abc")
-        self.assertEqual(len(calls), 3)
-
-    def test_timeout_must_be_finite_and_positive(self):
-        for timeout in (0, -1, float("nan"), float("inf"), float("-inf")):
-            with self.subTest(timeout=timeout), self.assertRaisesRegex(ValueError, "有限"):
-                HTTPTransport("https://game.example", "secret", timeout=timeout)
-        self.assertEqual(HTTPTransport("https://game.example", "secret", timeout=0.1).timeout, 0.1)
 
     def test_local_adapter_calls_repository_without_http(self):
         class Repository:

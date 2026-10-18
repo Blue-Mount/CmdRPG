@@ -371,6 +371,8 @@ class GrowthMixin:
                 "成长、换装与准备仅在胜利后的安全阶段开放；开发试玩可配置战前组合。",
             )
         if kind == "levelup":
+            if state.get('campaign') and a['level'] >= state['campaign']['unlocked_level']:
+                self._growth_error('level_locked', '战役等级由战斗胜利解锁；无法跳过成长节点。')
             if a["level"] >= 5:
                 self._growth_error("level_cap", "本轮等级上限为5。")
             description = f"固定职业成长：{a['level']} → {a['level']+1} 级，保留已消耗资源与倒地状态。"
@@ -461,7 +463,8 @@ class GrowthMixin:
         a = work["actors"][c["actor"]]
         if c["type"] == "levelup":
             snapshot(a, a["level"] + 1, self.content["items"])
-            work["content_version"] = self.content["version"]
+            if not work.get('campaign'):
+                work["content_version"] = self.content["version"]
             work["rules_version"] = self.content["rules_version"]
         elif c["type"] == "equip":
             a["equipment"][c["slot"]] = c.get("item")

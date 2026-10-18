@@ -6,9 +6,9 @@ M3现行接口见文末；前段保留历史切片契约用于兼容说明。
 
 ## 核心接口
 
-`core.engine.Engine()` 加载 `content/pack.json`。标准库核心，不依赖 FastAPI。
+`core.engine.Engine()` 加载 `content/pack.json`。标准库核心。
 
-- `new_run(name="远征队", templates=None, seed=None) -> dict`：返回可 JSON 序列化的完整服务端状态；恰好四人，允许重复职业。
+- `new_run(name="远征队", templates=None, seed=None) -> dict`：返回可 JSON 序列化的完整游戏状态；恰好四人，允许重复职业。
 - `view(state) -> dict`：只返回玩家可见内容，包含 `id`, `name`, `revision`, `phase`, `round`, `active`（可操作角色编号列表）, `party`, `enemies`, `map`, `pending`, `recent_events`, `outcome`, `content_version`。隐藏坐标、随机数、战前快照不会进入此结果。
 - `preview(state, command) -> dict`：不修改状态或随机数，返回 `command`, `cost`, `description`, `warnings`, `targets`，合法性错误抛 `GameError`。
 - `execute(state, command) -> (new_state, events)`：在深拷贝上验证与计算，成功版本加一，失败不改变输入。
@@ -39,20 +39,11 @@ M3现行接口见文末；前段保留历史切片契约用于兼容说明。
 
 `actions` / `party` / `inspect` / `log` / `resume` 是读取命令，由客户端基于 view / events 实现；不提交写请求。`preview` 和 `do` 使用相同命令对象。直接命令也经过核心验证。先不实现跳跃、推动、购物、换装或完整战役，不提供这些操作入口。
 
-## 服务 API
+## 本地存档接口
 
-`server.app:create_app(database_path=None, token=None)` 工厂；模块级 `app`，环境配置 `CMDRPG_DB`（默认 data/game.sqlite3）、`CMDRPG_TOKEN`；未配 token 限 localhost 部署并在 README 中注明。服务无凭据时不得允许游戏 API，health 可公开；本地 CLI 直接调用仓库，无需 HTTP。
+`saves.storage.Repository` 提供 `create_run`、`get_view`、`preview`、`options`、`submit`、`react`、`retry`、`events`、`list_runs` 与 `backup`。中文终端通过 `LocalTransport` 直接调用，同一 SQLite 事务保存状态、事件、操作回执。
 
-- `POST /runs`：`{name, templates, seed?, command_id}`，幂等建队。
-- `GET /runs/{id}/view`。
-- `POST /runs/{id}/preview`：`{command}`。
-- `POST /runs/{id}/commands`：`{command_id, expected_revision, command}`。
-- `POST /runs/{id}/reactions`：`{command_id, expected_revision, choice}`。
-- `POST /runs/{id}/retry`：`{command_id, expected_revision}`。
-- `GET /runs/{id}/events?after=0&limit=20`：`{events, next_after}`。
-- `GET /health`。
-
-写入回执 `{command_id, revision, view, events}`；创建回执另含 `run_id`。相同 ID 不同内容拒绝。重放先于 revision 检查。SQLite 单事务保存状态、事件、回执；按周目串行写。
+GitHub 传档工具 `tools.sync_saves` 使用独立 `game-saves` 分支。游戏和传档共用数据库进程锁；下载先校验再备份、替换，冲突须明确选择来源。详细行为见 [本地运行与传档](deployment.md)。
 
 ## 内容包
 
@@ -70,7 +61,7 @@ map：`width`（16）, `height`（12）, `cell_size`（1.5）, `walls`（如 F5�
 
 ## 终端
 
-`python -m client` 默认本地 SQLite；`--url` + `--token` / 环境变量接远程；`--run ID` 恢复；`--new` 新建，`--classes fighter,monk,wizard,cleric`。网络写入的超时重试必须复用原 command_id。Python 标准库 urllib / readline 可选，不让公司端必须装 FastAPI。
+`python -m client` 恢复本地 SQLite；`--run ID` 恢复指定周目；`--new` 新建，`--classes fighter,monk,wizard,cleric` 配置职业。只依赖 Python 标准库。
 
 `preview move P2 G6`、`preview attack P1 E1`、`preview cast P3 fire_bolt E1`、`do 1`、`end P1`、`react accept`、`retry`、`rest short`。支持数字菜单与中文帮助。
 
@@ -81,12 +72,12 @@ map：`width`（16）, `height`（12）, `cell_size`（1.5）, `walls`（如 F5�
 
 `initiative_order` 仅提供已揭示参与者编号与当前组标记，不提供先攻骰或未发现敌人。`last_seen` 是写入期间记录的历史目击位置/回合，不是当前位置；查询视图不更新记忆、不推进随机数。`battle_summary` 是保存的事件统计，旧存档从升级后开始累计，不能视为旧战斗的完整历史。非 combat 阶段 `active` 恒为 `[]`。
 
-鉴权 `GET /runs` 返回最近 20 个周目的编号、名称、版本、更新时间；客户端 `--list-runs` 只读，不更改默认恢复目标或处理 pending journal。
+`Repository.list_runs()` 返回最近周目的编号、名称、版本与更新时间；`--list-runs` 只读，不改变恢复目标。
 
 
 ## M3接口扩展（2026-10-18，现行）
 
-`Engine.new_run(..., *, levels=None, loadouts=None)` 的额外关键字仅供开发创建器；普通HTTP创建接口不接受等级/装备注入。新局默认仍为四名1级角色，但使用M3快照。开发创建器可为四人各指定1–5级并验证战前装备/准备；后续仍走同一SQLite和HTTP命令事务。
+`Engine.new_run(..., *, levels=None, loadouts=None)` 的额外关键字仅供开发创建器；普通建队入口不接受等级/装备注入。新局默认仍为四名1级角色，但使用M3快照。开发创建器可为四人各指定1–5级并验证战前装备/准备；后续仍走同一SQLite命令事务。
 
 新增安全阶段命令（`preview`与`commands`使用完全相同对象）：
 

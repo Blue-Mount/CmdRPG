@@ -3,7 +3,7 @@ import uuid
 
 import pytest
 
-from server.storage import Repository
+from saves.storage import Repository
 from tools.play_slice import play
 
 

@@ -1,22 +1,35 @@
 # CmdRPG：四人小队终端战术游戏
 
-依据 [首版计划书](四人小队终端战术游戏首版计划书.md) 开始实施。目前交付 M3 `0.3.0-m3`：四职业1–5级固定成长、实际职业能力与装备、本地/HTTP中文终端、自动存档和断线恢复。仍使用一场前哨战；六职业八级和战役另行推进。
+目前包含 M3 四职业1–5级成长与 M4 五站战役雏形：路线分支、六张遭遇地图、营地、金币奖励、药水/装备商店和最终 Boss。游戏在本机运行，使用 SQLite 自动存档；可手动通过 GitHub 换机传档。六职业八级、20场完整版仍是长期目标。
+
+## M4 战役试玩
+
+在仓库根目录执行，使用独立临时存档，启动时会显示恢复命令：
+
+```powershell
+.\.venv\Scripts\python.exe -m tools.dev_play --campaign
+```
+
+也可 `python -m client --campaign --seed 42` 在正常本地数据库新开战役。旧周目保留；现有独立战斗首页9或战后12也能新开战役。
+
+路线为 **前哨 → 旧道或山脊 → 要塞双门 → 熔炉 → 裂隙之心 Boss**。战后13/14前进、15营地、16商店、7–10换装/准备法术，均先预览再按 `c`。胜利自动发金币并解锁成长；生命与资源消耗带入下一站。完整说明见 [战役规则](docs/campaign.md)，验证记录见 [M4 QA](docs/qa-m4-2026-10-18.md)。
+
+默认界面使用简明地图和单行行动；选角不重复刷地图。`map` 展开地形/地标，`party` 查资源，行动菜单中的“技能与规则说明”查完整技能，`log 10` 查计算。倒地、死亡、胜负与战役奖励优先显示。
 
 ## M3独立开发试玩
 
-在 `D:\CmdRPG-dev` 执行，数据库与客户端记录自动放到独立临时目录，退出后保留路径供恢复；不读取正常玩家存档或凭据：
+在仓库根目录执行，数据库与客户端记录自动放到独立临时目录，退出后保留路径供恢复；不读取正常玩家存档或凭据：
 
 ```powershell
 .\.venv\Scripts\python.exe -m tools.dev_play --level 5
 .\.venv\Scripts\python.exe -m tools.dev_play --levels 2,3,4,5 --equip P1:off_hand:none --equip P1:main_hand:greatsword
-.\.venv\Scripts\python.exe -m tools.dev_play --level 5 --http
 ```
 
 `--classes` 选择四人职业。`party` 查看中文装备、属性、成长、法术位和职业资源。胜利后7–10号进入各队员成长/装备/准备菜单，先预览再用 `c` 确认；开发局11号沿用新等级与装备重新演练，并刷新全部生命与资源。不是战役下一关或奖励。启动时输出该局的独立恢复命令。完整能力和规则差异见 [M3成长](docs/growth.md)。
 
 ## 立即试玩
 
-需要 Python 3.11 或更高版本，在本项目目录执行。**本地玩法仅依赖 Python 标准库**，不必安装服务端依赖。
+需要 Python 3.11 或更高版本，在本项目目录执行。**本地玩法仅依赖 Python 标准库**。
 
 ```powershell
 python -m client --new --seed 42
@@ -30,9 +43,9 @@ python -m client --new --seed 42
 
 已有命令仍可作为快捷入口：`actions P3` 看职业技能，`party` 看资源，`map` 看地图，`inspect G6` 查位置，`log 10` 按需展开计算明细；详见 [终端玩法与命令](docs/terminal.md)。默认界面无需记忆英文命令或能力编号。
 
-输入 `q` 随时离开，再执行 `python -m client` 恢复最近周目。存档位于 `data/game.sqlite3`，客户端记住连接与周目 ID。待选反应不会因离开而推进；战败用 `retry` 恢复同一战前状态与随机数。
+输入 `q` 随时离开，再执行 `python -m client` 恢复最近周目。存档位于 `data/game.sqlite3`，终端记住所选存档与周目 ID。待选反应不会因离开而推进；战败用 `retry` 恢复同一战前状态与随机数。
 
-**胜利后进入战后菜单**：`1` 全队短休，先看恢复预览，再用 `c` 一次为所有存活队员休息；`2` 查看队伍；`3` 用当前阵容重开独立周目，需要 `c` 确认，原胜利存档仍保留；`4` 地图；`5` 详细日志；`6` 战利品说明。当前切片只有这一场前哨战，没有下一关或尸体掉落；M3另有7–10号成长装备菜单，不能摸尸体拾取装备。可退出保存成果，也可重开再试一场；命令行 `--new` 同样能新建周目。
+**独立前哨战胜利后进入战后菜单**：`1` 全队短休，`2` 查看队伍，`3` 同阵容重开独立周目，`4` 地图，`5` 日志，`6` 战利品说明，`7–10` 成长与装备，`12` 新开战役。新建操作需要 `c` 确认，原存档保留。独立前哨战不发金币或尸体掉落；战役的奖励自动结算，可在商店购买装备。
 
 地图每格都有明确边界，`P2*` 标记当前选角；尸体另列说明且不占格、不挡路。目标菜单的距离是包含高差的**三维直线距离（同高度近战 / 触及允许斜角相邻）**，移动成本按可走路径另算。例如 K4 台阶到 L4 高台水平相隔 1.5 米、高差 1.5 米，距离约为 2.12 米。
 
@@ -43,57 +56,38 @@ python -m client --run <周目ID>
 
 当前目录已有开发虚拟环境时，也可执行 `.\.venv\Scripts\python.exe -m client --new`，或 `./run-local.ps1 -New`。
 
-## 开发与 HTTP 服务
+## GitHub 存档
 
-远程玩家可使用独立安装目录的一键入口，启动时自动同步客户端及资源，复用本机 DPAPI 凭据并恢复原周目；见 [客户端安装、自动发布与更新](docs/client-updates.md)。开发仓库不参与玩家自动覆盖，Git 推送不自动部署服务器。
+平时直接本地玩，每个成功动作自动保存。换电脑时，先退出游戏，再手动同步：
+
+```powershell
+# 在有进度的电脑上传
+./run-local.ps1 -UploadSave
+# 在另一台电脑下载
+./run-local.ps1 -DownloadSave
+# 继续最近周目
+./run-local.ps1
+```
+
+也可使用 `python -m tools.sync_saves push` / `pull`。代码通过 `git pull` 更新；存档单独放在同一仓库的 `game-saves` 分支，工具自动处理，无需切换代码分支。需要 Git 和该 GitHub 仓库的读写权限，复用本机 Git 登录。
+
+下载覆盖前自动备份本机旧档；有未上传进度或远端分歧时拒绝静默覆盖。确认采用来源进度时使用 `-Replace`（命令行工具对应 `--replace`）。游玩期间不进行同步，断网可以照常玩。详见 [本地运行与 GitHub 存档](docs/deployment.md)。
+
+## 开发
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m pytest -q
+./.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+./.venv/Scripts/python.exe -m pytest -q
 ```
 
-启动独立服务：
+结构：`core/` 规则、`content/` 内容、`saves/` 本地存档、`client/` 中文终端、`tools/` 试玩/备份/GitHub 同步、`tests/` 回归验证。运行游戏只需 Python 3.11+ 标准库。
 
-```powershell
-$env:CMDRPG_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"
-.\.venv\Scripts\python.exe -m uvicorn server.app:app --host 127.0.0.1 --port 8765 --workers 1
-```
+当前为四职业1–5级、五站战役雏形，包含路线分支、营地、金币、商店与最终 Boss。六职业八级、20场战役和三次完整人工试玩仍为长期目标。
 
-另一个终端设置同一凭据后连接（凭据推荐放环境变量）：
-
-```powershell
-$env:CMDRPG_TOKEN = '<服务端同一凭据>'
-python -m client --url http://127.0.0.1:8765 --config data/remote-client.json --new
-```
-
-远程客户端仍只依赖标准库，使用实际 HTTPS 地址替换 URL。未配置凭据时，服务拒绝游戏 API；`/health` 仍可读。客户端不保存 token，写请求先记录原命令编号，超时可 `resend`，重启也可恢复回执。所有动作使用服务端版本号校验，过期预览需要重做。
-
-家中 / 公司真实网络、ThiefBook 复用及开机自启尚未配置。当前没有创建远程入口，也没有访问公司设备。
-
-## 当前实现与下一阶段
-
-- 核心：四人控制、相邻先攻共享操作、攻击 / 暴击 / 优劣势、法术位、专注、职业豁免、移动 / 高差 / 遮挡、危险地面、借机反应、倒地与死亡豁免。
-- 内容：四种1–5级职业子集、十八种能力、三类敌人、16×12 原创地图；JSON 校验拒绝非法引用、未实现效果与不可达关键路径。
-- 一致性：SQLite 原子保存状态 / 随机数 / 事件 / 回执，重发幂等、并发旧版本拒绝、反应原位续接、战败快照恢复、一致性备份。
-- 交互：中文角色与完整技能菜单、编号目标选择、多目标祝福、确认预览、带格边界的可达地图及常用目的地、全队短休与胜利结算菜单，保留全部命令快捷入口。
-- 验证：三种阵容自动走通切片；每次写入关闭并重开数据库，结果与不中断执行一致；含中文数字菜单全战斗、取消及过期预览、实际客户端全流程、回执丢失恢复、备份还原，以及真实 HTTP 服务重启后继续至胜利的测试。
-
-这些自动验证不替代计划书要求的三次完整战役人工试玩与五小时节奏校准。BG3 规则版本仍是暂定对照，具体 Patch 8 build 尚未实测冻结；本切片不声称完整复现 BG3。指定build核验与完整职业包仍待完成；当前M3能力边界见成长文档，M4再接战役循环。
-
-## 文档
-
-- [终端命令与恢复](docs/terminal.md)
-- [API 契约](docs/api.md)
-- [启动、连接、备份与恢复](docs/deployment.md)
-- [规则来源、验收与公开差异](docs/rules.md)
-- [六职业成长草案](docs/growth.md)
-- [M0–M5 实施路线](docs/roadmap.md)
-- [本轮测试与三阵容走通记录](docs/verification.md)
-
-结构：`core/` 为独立规则，`content/` 为声明式数据，`server/` 为存档与 API，`client/` 为纯文字界面，`tests/` 为规则及恢复回归，`tools/` 为备份与自动验证。旧0.1切片存档可经显式兼容分支读取、继续战斗，查询不改档；安全阶段显式升级才为该角色建立M3快照并写入新内容版本。未知版本拒绝。部署前仍应备份，回退旧程序不能读取已升级的M3档。
-
-
-## 2026-10-17 QA 更新
-
-交互建队：`python -m client --setup`；查看周目：`python -m client --list-runs`。远程同样支持这两个选项。查看本轮修复、规则误判及尚未完成范围：[QA 整改记录](docs/qa-remediation-20261017.md)。新建地图中央门洞为两格宽；旧档地图保持原样。
+- [终端玩法](docs/terminal.md)
+- [战役规则](docs/campaign.md)
+- [成长与装备](docs/growth.md)
+- [规则差异](docs/rules.md)
+- [实施路线](docs/roadmap.md)
+- [验证记录](docs/verification.md)

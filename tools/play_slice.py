@@ -24,7 +24,10 @@ def move_for_attack(engine, state, view, actor, enemies, attack_range):
     board = view['map']
     blocked = {a['position'] for a in view['party'] + view['enemies'] if a['id'] != actor['id'] and 'dead' not in a['conditions']}
     choices = []
-    goals = enemies or [{'position':'M10','id':'explore'}]
+    goals = enemies or view.get('last_seen') or [{'position':'M10','id':'explore'}]
+    if not enemies:
+        attack_range = 0  # Explore to the goal; stopping a spell's range away reveals nothing.
+    routes = spatial.paths(board, actor['position'], blocked | (set(board['hazards']) - {actor['position']}))
     for target in goals:
         for y in range(board['height']):
             for x in range(board['width']):
@@ -33,7 +36,9 @@ def move_for_attack(engine, state, view, actor, enemies, attack_range):
                     continue
                 if spatial.distance(board, cell, target['position']) > attack_range or not spatial.line_of_sight(board, cell, target['position']):
                     continue
-                route = spatial.path(board, actor['position'], cell, blocked)
+                # A safe destination can still have a hazardous shortest path.
+                # Route around known fire rather than repeatedly stopping at it.
+                route = routes.get(cell)
                 if route:
                     choices.append((route[1], target['id'], cell, route[0]))
     if not choices:

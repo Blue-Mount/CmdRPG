@@ -1,61 +1,65 @@
-# 启动、备份和恢复
+# 本地运行与 GitHub 存档
 
-远程玩家的一键启动、DPAPI 凭据、首次迁移、自动更新及原电脑的一次性发布服务部署，见 [客户端自动更新](client-updates.md)。
-
-以下命令在项目根目录的 PowerShell 中执行。远程入口与 ThiefBook 的实际部署尚未核对；当前实现独立游戏服务、凭据和 SQLite 文件。M1/M2 切片的家中与公司网络连接仍需在实际设备上验证。
-
-## 本地运行
+需要 Python 3.11+。首次 `git clone`，已有代码用 `git pull` 更新。在仓库根目录执行：
 
 ```powershell
-python -m client --new
+python -m client --campaign
+python -m client
 ```
 
-本地终端直接使用 SQLite 和规则核心，运行时不需要 FastAPI，也不需要 token。默认存档在 `data/game.sqlite3`。使用同一个数据库时，本地客户端与 API 都按版本号提交，避免旧局势覆盖新操作。
+第一条新开战役，第二条恢复最近周目；`python -m client --new` 新开独立前哨战，`--list-runs` 列出周目。也可使用 `./run-local.ps1 -Campaign`、`./run-local.ps1`。游玩只依赖标准库。
 
-## API 服务
+## 存档位置
 
-安装服务依赖并配置 token：
+`data/game.sqlite3` 保存所有周目、随机状态、事件和操作回执；`data/client.json` 记录本机数据库路径与所选周目。每个成功动作自动写入 SQLite，离开游戏不会自行推进回合。可用 `--db` / `CMDRPG_DB` 和 `--config` / `CMDRPG_CLIENT_CONFIG` 指定其他路径。
+
+同一存档同时只允许一个游戏或同步进程使用。`.lock` 文件是正常的锁文件，操作系统会在进程退出后释放锁；无需手工删除。
+
+## 换电脑传档
+
+先退出游戏，使用该私有仓库已有的 GitHub 登录。工具复用 Git 凭据管理，不另外保存 GitHub token。
 
 ```powershell
-python -m pip install -r requirements.txt
-$env:CMDRPG_DB = 'data/game.sqlite3'
-$env:CMDRPG_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"
-python -m uvicorn server.app:app --host 127.0.0.1 --port 8765 --workers 1
+# 电脑 A：上传本地全部周目
+python -m tools.sync_saves push
+# 电脑 B：先拉最新游戏代码，再下载存档
+git pull
+python -m tools.sync_saves pull
+python -m client
 ```
 
-`CMDRPG_DB` 默认是 `data/game.sqlite3`；`CMDRPG_TOKEN` 无默认值。没有 token 时，只有 `/health` 可用，所有游戏 API 拒绝访问。凭据不要写入版本库或战斗日志。首次配置凭据后，使用进程管理器时也要设置相同环境变量和项目工作目录。只运行一个服务进程；主机重启后重新启动即可恢复最近一次完整提交，待选反应不会自行推进。
+一键脚本等价入口：`./run-local.ps1 -UploadSave` 和 `./run-local.ps1 -DownloadSave`。未选择同步时完全本地游玩。工具不会自动上传或下载，也不会改变代码分支、提交开发改动。
 
-本机 HTTP 验证：
+存档位于同一 GitHub 仓库独立的 `game-saves` 分支。每次上传用 SQLite backup 创建一致性快照，分支只提交 `game.sqlite3` 与 `save.json`（校验、所选周目、时间）；不上传本机路径、凭据或配置文件。无需手工 checkout 这个分支。首次成功上传会创建分支。
+
+下载校验完整性、逻辑校验值和游戏规则/内容版本，重建本机路径并恢复所选周目。若两台电脑分别推进，工具会提示选择；不会合并两个 SQLite 进度。下载覆盖已有不同存档前，在 `data/save-backups/` 留下完整备份。
+
+确实需要选择一边时显式执行：
 
 ```powershell
-Invoke-RestMethod 'http://127.0.0.1:8765/health'
-python -m client --url http://127.0.0.1:8765 --new
+# 采用 GitHub 进度，备份并覆盖本机不同进度
+python -m tools.sync_saves pull --replace
+# 采用本机进度，追加 Git 提交覆盖 GitHub 当前进度；历史提交仍保留
+python -m tools.sync_saves push --replace
 ```
 
-客户端读取 `CMDRPG_TOKEN`，也可以使用 `--token`。远程使用经过核对的 HTTPS 入口转发到这个回环端口，客户端把 `--url` 改为实际地址。公司的网络策略与 Python 运行环境需要单独实测。尚未创建 Tunnel、修改路由或配置系统开机服务。
+普通 push 也不会强制推送；上传中如果其他电脑先提交，Git 会拒绝并提示重新同步。首次遇到一份没有同步记录的本机不同进度，同样需要明确选择。
 
-## 一致性备份
+网络/登录失败时保留本地档。请先在该电脑完成私有仓库的正常 clone/pull 登录。代码版本不兼容时先更新游戏；同步不包含代码更新。GitHub 会保留存档历史，所以只上传你希望保留的周目即可。
 
-可以在服务运行时备份。工具使用 SQLite backup API，包含已经提交到 WAL 的数据，不使用运行期间直接复制主数据库文件的方式。备份自带数据库完整性检查，目标文件必须不存在，避免覆盖旧存档。
+## 手动备份与恢复
 
 ```powershell
 python -m tools.backup backups/game-before-update.sqlite3
-python -m tools.backup backups/game-manual.sqlite3 --database data/game.sqlite3
+# 自定义数据库
+python -m tools.backup backups/game-other.sqlite3 --database data/other.sqlite3
 ```
 
-备份包含完整服务端信息和命令回执，应放在只有自己可访问的位置。更新规则、内容包或程序前备份，同时记录当前程序版本。存档保存 `content_version`、`rules_version`、`save_version`；不兼容内容由核心拒绝恢复。当前切片没有自动迁移或旧内容包归档功能，恢复时需要匹配的代码与内容包。
-
-## 恢复到独立文件
-
-先停止原服务，保留原数据库及其 `-wal`、`-shm` 文件。将备份复制到一个新的恢复目录，文件名不要与已有存档相同：
+备份目标须不存在，工具包含已提交 WAL 数据并做完整性检查。恢复时先退出游戏，将备份放在独立路径，再指定它启动；保留原档：
 
 ```powershell
-New-Item -ItemType Directory -Path restore-check -ErrorAction Stop
-Copy-Item -LiteralPath backups/game-before-update.sqlite3 -Destination restore-check/game.sqlite3 -ErrorAction Stop
-$env:CMDRPG_DB = 'restore-check/game.sqlite3'
-python -m uvicorn server.app:app --host 127.0.0.1 --port 8765 --workers 1
+python -m client --db backups/game-before-update.sqlite3 --config data/restored-client.json --list-runs
+python -m client --db backups/game-before-update.sqlite3 --config data/restored-client.json --run 周目ID
 ```
 
-确认恢复文件不存在后执行复制；以上新目录命令在目录已存在时会停止，不复用原数据库。保持正确的 `CMDRPG_TOKEN`。用原周目 ID 连接查看版本、资源、事件和待选反应；客户端重发已有命令 ID应取得原回执。确认恢复无误后，可以持续使用恢复文件，不需要覆盖原存档。
-
-自动测试覆盖运行中 WAL 备份、独立文件恢复、待选反应、完整回执重放，以及提交回执前故障导致的事务回滚。实际网络连接和系统重启操作仍需部署时验证。
+不要将运行期间直接复制的单个 SQLite 文件作为备份。规则/内容升级前先备份，旧程序未必能读取新格式存档。

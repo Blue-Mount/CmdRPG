@@ -11,7 +11,7 @@ import pytest
 
 from core.engine import Engine, GameError
 from core.growth import DATA, validate_growth
-from server.storage import Repository, RepositoryError
+from saves.storage import Repository, RepositoryError
 
 
 def arena(level=5):
@@ -471,60 +471,6 @@ def test_level_five_reaction_restart_preserves_extra_attack_and_resources(tmp_pa
     repo.close()
 
 
-def test_http_growth_equipment_preparation_restart_and_idempotency(tmp_path):
-    from fastapi.testclient import TestClient
-    from server.app import create_app
-
-    e, s = arena(3)
-    safe(s)
-    fixture = FixtureEngine()
-    fixture.initial = s
-    path = tmp_path / "http.sqlite3"
-    headers = {"Authorization": "Bearer m3-test"}
-    repo = Repository(path, fixture)
-    with TestClient(create_app(repository=repo, token="m3-test")) as client:
-        created = client.post(
-            "/runs", headers=headers, json={"command_id": "create"}
-        ).json()
-        rid = created["run_id"]
-        for i, c in enumerate(
-            [
-                {"type": "levelup", "actor": "P3"},
-                {"type": "equip", "actor": "P3", "slot": "main_hand", "item": "staff"},
-                {"type": "prepare", "actor": "P3", "spells": ["magic_missile"]},
-            ]
-        ):
-            payload = {"command_id": f"cmd{i}", "expected_revision": i, "command": c}
-            preview = client.post(
-                f"/runs/{rid}/preview", headers=headers, json={"command": c}
-            )
-            assert preview.status_code == 200
-            response = client.post(
-                f"/runs/{rid}/commands", headers=headers, json=payload
-            )
-            assert response.status_code == 200, response.text
-            assert (
-                client.post(
-                    f"/runs/{rid}/commands", headers=headers, json=payload
-                ).json()
-                == response.json()
-            )
-        assert (
-            client.post(
-                f"/runs/{rid}/commands",
-                headers=headers,
-                json={**payload, "command_id": "stale", "expected_revision": 0},
-            ).status_code
-            == 409
-        )
-    with TestClient(create_app(path, "m3-test")) as client:
-        view = client.get(f"/runs/{rid}/view", headers=headers).json()
-        a = view["party"][2]
-        assert (
-            a["level"] == 4
-            and a["equipment"]["main_hand"] == "staff"
-            and a["prepared"] == ["magic_missile"]
-        )
 
 
 def test_chinese_growth_menu_preview_cancel_confirm(tmp_path):
@@ -634,8 +580,7 @@ def test_targetless_spells_parse_and_new_preview_attack_counts():
     assert s["actors"]["P1"]["ac"] == 16  # 13 + Dexterity 1 + shield 2
 
 
-@pytest.mark.parametrize("http", [False, True])
-def test_isolated_developer_entry_uses_real_terminal_and_temp_database(http):
+def test_isolated_developer_entry_uses_real_terminal_and_temp_database():
     command = [
         sys.executable,
         "-m",
@@ -646,7 +591,7 @@ def test_isolated_developer_entry_uses_real_terminal_and_temp_database(http):
         "P1:off_hand:none",
         "--equip",
         "P1:main_hand:greatsword",
-    ] + (["--http"] if http else [])
+    ]
     process = subprocess.run(
         command,
         input="party\nq\n",

@@ -1,0 +1,816 @@
+{
+  "version": 1,
+  "name": "裂隙远征",
+  "start": "outpost",
+  "nodes": {
+    "outpost": {
+      "name": "裂隙远征 · 前哨",
+      "stage": 1,
+      "next": [
+        "road",
+        "ridge"
+      ],
+      "gold": 80,
+      "map": {
+        "width": 16,
+        "height": 12,
+        "cell_size": 1.5,
+        "walls": [
+          "F2",
+          "F3",
+          "F4",
+          "F8",
+          "F9",
+          "F10"
+        ],
+        "heights": {},
+        "difficult": [],
+        "hazards": {
+          "H9": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          }
+        },
+        "landmarks": [
+          {
+            "position": "F6",
+            "name": "前哨门洞",
+            "description": "中央两格通路，连接前哨两侧。"
+          },
+          {
+            "position": "M6",
+            "name": "远征路标",
+            "description": "胜利后选择旧道或山脊，两条路线在要塞会合。"
+          }
+        ]
+      },
+      "prototypes": {
+        "foe_1": {
+          "name": "裂隙前哨守卫",
+          "hp": 13,
+          "ac": 13,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d6",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_2": {
+          "name": "废营突袭者",
+          "hp": 10,
+          "ac": 12,
+          "stats": {
+            "str": 12,
+            "dex": 14,
+            "con": 10,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d4",
+          "damage_type": "piercing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_3": {
+          "name": "石阶瞭望手",
+          "hp": 9,
+          "ac": 12,
+          "stats": {
+            "str": 10,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 12,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 18,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "ranged",
+          "attack_stat": "dex"
+        }
+      },
+      "encounter": {
+        "name": "裂隙远征 · 前哨",
+        "description": "击败守军，夺回裂隙要塞。战后可休整、购物并选择前进路线。",
+        "party_spawns": [
+          "B5",
+          "B6",
+          "B7",
+          "B8"
+        ],
+        "enemies": [
+          {
+            "id": "E1",
+            "prototype": "foe_1",
+            "position": "G6"
+          },
+          {
+            "id": "E2",
+            "prototype": "foe_2",
+            "position": "J8"
+          },
+          {
+            "id": "E3",
+            "prototype": "foe_3",
+            "position": "L5"
+          }
+        ]
+      }
+    },
+    "road": {
+      "name": "第二站 · 灰烬旧道",
+      "stage": 2,
+      "next": [
+        "gate"
+      ],
+      "gold": 100,
+      "map": {
+        "width": 16,
+        "height": 12,
+        "cell_size": 1.5,
+        "walls": [],
+        "heights": {},
+        "difficult": [
+          "F5",
+          "F6",
+          "F7"
+        ],
+        "hazards": {
+          "H5": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          },
+          "H6": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          },
+          "H7": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          }
+        },
+        "landmarks": [
+          {
+            "position": "G4",
+            "name": "旧道北侧",
+            "description": "绕开中央燃烧路段。"
+          },
+          {
+            "position": "M6",
+            "name": "要塞路口",
+            "description": "穿过旧道后进入要塞。"
+          }
+        ]
+      },
+      "prototypes": {
+        "foe_1": {
+          "name": "废营突袭者",
+          "hp": 18,
+          "ac": 12,
+          "stats": {
+            "str": 12,
+            "dex": 14,
+            "con": 10,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_2": {
+          "name": "裂隙前哨守卫",
+          "hp": 23,
+          "ac": 13,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d6",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_3": {
+          "name": "石阶瞭望手",
+          "hp": 16,
+          "ac": 12,
+          "stats": {
+            "str": 10,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 12,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 18,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "ranged",
+          "attack_stat": "dex"
+        }
+      },
+      "encounter": {
+        "name": "第二站 · 灰烬旧道",
+        "description": "击败守军，夺回裂隙要塞。战后可休整、购物并选择前进路线。",
+        "party_spawns": [
+          "B5",
+          "B6",
+          "B7",
+          "B8"
+        ],
+        "enemies": [
+          {
+            "id": "E1",
+            "prototype": "foe_1",
+            "position": "G6"
+          },
+          {
+            "id": "E2",
+            "prototype": "foe_2",
+            "position": "J7"
+          },
+          {
+            "id": "E3",
+            "prototype": "foe_3",
+            "position": "L5"
+          }
+        ]
+      }
+    },
+    "ridge": {
+      "name": "第二站 · 北侧山脊",
+      "stage": 2,
+      "next": [
+        "gate"
+      ],
+      "gold": 100,
+      "map": {
+        "width": 16,
+        "height": 12,
+        "cell_size": 1.5,
+        "walls": [
+          "H6",
+          "H7",
+          "H8"
+        ],
+        "heights": {
+          "J4": 1.5,
+          "K4": 3,
+          "K5": 1.5,
+          "L4": 3,
+          "L5": 1.5,
+          "I4": 1.5,
+          "J5": 1.5
+        },
+        "difficult": [],
+        "hazards": {},
+        "landmarks": [
+          {
+            "position": "J4",
+            "name": "山脊台阶",
+            "description": "从1.5米台阶接近高地射手。"
+          },
+          {
+            "position": "M6",
+            "name": "下山出口",
+            "description": "穿过山脊后进入要塞。"
+          }
+        ]
+      },
+      "prototypes": {
+        "foe_1": {
+          "name": "裂隙前哨守卫",
+          "hp": 23,
+          "ac": 13,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d6",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_2": {
+          "name": "石阶瞭望手",
+          "hp": 16,
+          "ac": 12,
+          "stats": {
+            "str": 10,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 12,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 18,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "ranged",
+          "attack_stat": "dex"
+        },
+        "foe_3": {
+          "name": "石阶瞭望手",
+          "hp": 16,
+          "ac": 12,
+          "stats": {
+            "str": 10,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 12,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 18,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "ranged",
+          "attack_stat": "dex"
+        }
+      },
+      "encounter": {
+        "name": "第二站 · 北侧山脊",
+        "description": "击败守军，夺回裂隙要塞。战后可休整、购物并选择前进路线。",
+        "party_spawns": [
+          "B5",
+          "B6",
+          "B7",
+          "B8"
+        ],
+        "enemies": [
+          {
+            "id": "E1",
+            "prototype": "foe_1",
+            "position": "G6"
+          },
+          {
+            "id": "E2",
+            "prototype": "foe_2",
+            "position": "K4"
+          },
+          {
+            "id": "E3",
+            "prototype": "foe_3",
+            "position": "L7"
+          }
+        ]
+      }
+    },
+    "gate": {
+      "name": "第三站 · 要塞双门",
+      "stage": 3,
+      "next": [
+        "forge"
+      ],
+      "gold": 120,
+      "map": {
+        "width": 16,
+        "height": 12,
+        "cell_size": 1.5,
+        "walls": [
+          "H2",
+          "H3",
+          "H4",
+          "H6",
+          "H7",
+          "H9",
+          "H10"
+        ],
+        "heights": {},
+        "difficult": [],
+        "hazards": {},
+        "landmarks": [
+          {
+            "position": "H5",
+            "name": "北门洞",
+            "description": "北侧通路。"
+          },
+          {
+            "position": "H8",
+            "name": "南门洞",
+            "description": "南侧通路。"
+          },
+          {
+            "position": "M6",
+            "name": "军械库",
+            "description": "战后解锁最终两站。"
+          }
+        ]
+      },
+      "prototypes": {
+        "foe_1": {
+          "name": "裂隙前哨守卫",
+          "hp": 32,
+          "ac": 14,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d8",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_2": {
+          "name": "裂隙前哨守卫",
+          "hp": 32,
+          "ac": 14,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d8",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_3": {
+          "name": "石阶瞭望手",
+          "hp": 24,
+          "ac": 13,
+          "stats": {
+            "str": 10,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 12,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 18,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "ranged",
+          "attack_stat": "dex"
+        }
+      },
+      "encounter": {
+        "name": "第三站 · 要塞双门",
+        "description": "击败守军，夺回裂隙要塞。战后可休整、购物并选择前进路线。",
+        "party_spawns": [
+          "B5",
+          "B6",
+          "B7",
+          "B8"
+        ],
+        "enemies": [
+          {
+            "id": "E1",
+            "prototype": "foe_1",
+            "position": "G5"
+          },
+          {
+            "id": "E2",
+            "prototype": "foe_2",
+            "position": "G8"
+          },
+          {
+            "id": "E3",
+            "prototype": "foe_3",
+            "position": "L6"
+          }
+        ]
+      }
+    },
+    "forge": {
+      "name": "第四站 · 熔炉守军",
+      "stage": 4,
+      "next": [
+        "heart"
+      ],
+      "gold": 140,
+      "map": {
+        "width": 16,
+        "height": 12,
+        "cell_size": 1.5,
+        "walls": [],
+        "heights": {},
+        "difficult": [
+          "F8",
+          "G8"
+        ],
+        "hazards": {
+          "H5": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          },
+          "H6": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          },
+          "I5": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          },
+          "I6": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          }
+        },
+        "landmarks": [
+          {
+            "position": "G4",
+            "name": "熔炉北廊",
+            "description": "绕开余烬，从北侧推进。"
+          },
+          {
+            "position": "M6",
+            "name": "核心大门",
+            "description": "下一站是最终Boss；建议升至5级并营地休整。"
+          }
+        ]
+      },
+      "prototypes": {
+        "foe_1": {
+          "name": "裂隙前哨守卫",
+          "hp": 40,
+          "ac": 14,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d8",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_2": {
+          "name": "废营突袭者",
+          "hp": 30,
+          "ac": 13,
+          "stats": {
+            "str": 12,
+            "dex": 14,
+            "con": 10,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_3": {
+          "name": "石阶瞭望手",
+          "hp": 28,
+          "ac": 13,
+          "stats": {
+            "str": 10,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 12,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 18,
+          "dice": "1d8",
+          "damage_type": "piercing",
+          "role": "ranged",
+          "attack_stat": "dex"
+        },
+        "foe_4": {
+          "name": "废营突袭者",
+          "hp": 30,
+          "ac": 13,
+          "stats": {
+            "str": 12,
+            "dex": 14,
+            "con": 10,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d6",
+          "damage_type": "piercing",
+          "role": "melee",
+          "attack_stat": "str"
+        }
+      },
+      "encounter": {
+        "name": "第四站 · 熔炉守军",
+        "description": "击败守军，夺回裂隙要塞。战后可休整、购物并选择前进路线。",
+        "party_spawns": [
+          "B5",
+          "B6",
+          "B7",
+          "B8"
+        ],
+        "enemies": [
+          {
+            "id": "E1",
+            "prototype": "foe_1",
+            "position": "G6"
+          },
+          {
+            "id": "E2",
+            "prototype": "foe_2",
+            "position": "I8"
+          },
+          {
+            "id": "E3",
+            "prototype": "foe_3",
+            "position": "L5"
+          },
+          {
+            "id": "E4",
+            "prototype": "foe_4",
+            "position": "L8"
+          }
+        ]
+      }
+    },
+    "heart": {
+      "name": "终站 · 裂隙之心",
+      "stage": 5,
+      "next": [],
+      "gold": 160,
+      "map": {
+        "width": 16,
+        "height": 12,
+        "cell_size": 1.5,
+        "walls": [
+          "G2",
+          "G3",
+          "G9",
+          "G10"
+        ],
+        "heights": {},
+        "difficult": [],
+        "hazards": {
+          "I4": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          },
+          "I8": {
+            "damage": 2,
+            "description": "裂隙余烬：进入造成2点火焰伤害。"
+          }
+        },
+        "landmarks": [
+          {
+            "position": "F6",
+            "name": "决战集结点",
+            "description": "前进前确认法术位与治疗药水。"
+          },
+          {
+            "position": "K6",
+            "name": "裂隙王座",
+            "description": "击败烬王和亲卫，完成本次远征。"
+          }
+        ]
+      },
+      "prototypes": {
+        "foe_1": {
+          "name": "裂隙领主·烬王",
+          "hp": 110,
+          "ac": 15,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "2d6",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_2": {
+          "name": "裂隙前哨守卫",
+          "hp": 40,
+          "ac": 14,
+          "stats": {
+            "str": 14,
+            "dex": 12,
+            "con": 12,
+            "int": 8,
+            "wis": 10,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 1.5,
+          "dice": "1d8",
+          "damage_type": "slashing",
+          "role": "melee",
+          "attack_stat": "str"
+        },
+        "foe_3": {
+          "name": "石阶瞭望手",
+          "hp": 30,
+          "ac": 13,
+          "stats": {
+            "str": 10,
+            "dex": 14,
+            "con": 10,
+            "int": 10,
+            "wis": 12,
+            "cha": 8
+          },
+          "speed": 9,
+          "range": 18,
+          "dice": "1d8",
+          "damage_type": "piercing",
+          "role": "ranged",
+          "attack_stat": "dex"
+        }
+      },
+      "encounter": {
+        "name": "终站 · 裂隙之心",
+        "description": "击败守军，夺回裂隙要塞。烬王率领亲卫守住最后的裂隙。",
+        "party_spawns": [
+          "B5",
+          "B6",
+          "B7",
+          "B8"
+        ],
+        "enemies": [
+          {
+            "id": "E1",
+            "prototype": "foe_1",
+            "position": "K6"
+          },
+          {
+            "id": "E2",
+            "prototype": "foe_2",
+            "position": "H4"
+          },
+          {
+            "id": "E3",
+            "prototype": "foe_3",
+            "position": "L9"
+          }
+        ]
+      }
+    }
+  },
+  "shop": {
+    "healing_potion": 10,
+    "greatsword": 35,
+    "leather": 20,
+    "scale_mail": 35,
+    "shield": 20,
+    "staff": 10
+  }
+}

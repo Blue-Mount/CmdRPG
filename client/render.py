@@ -1,4 +1,4 @@
-"""Text rendering consumes only the server's filtered view."""
+"""Text rendering consumes only the local filtered view."""
 
 import json
 import re
@@ -13,6 +13,7 @@ CONDITIONS = {"downed": "倒地", "dead": "死亡", "stable": "伤势稳定",
               "disengage": "撤离", "disengaged": "撤离", "mage_armor": "法师护甲"}
 COSTS = {"action": "动作", "bonus": "附赠动作", "reaction": "反应", "movement": "移动",
          "second_wind": "回气次数", "potions": "治疗药水", "short_rests": "短休次数", "ki": "气点", "action_surge":"动作如潮", "superiority":"优越骰", "channel":"引导神力", "arcane_recovery":"奥术回想"}
+COSTS['gold'] = '金币'
 
 
 def _number(value):
@@ -26,7 +27,7 @@ def _cost_name(key):
 
 
 def render_cost(cost):
-    """Translate the exact server cost without calculating client-side rules."""
+    """Translate the exact core cost without calculating client-side rules."""
     if not isinstance(cost, dict):
         return str(cost)
     return "、".join("%s %s%s" % (_cost_name(key), _number(value), "米" if key == "movement" else "")
@@ -54,7 +55,7 @@ def _named_text(text, view):
     def replace(match):
         actor = _actor(view, match[0])
         name = actor.get("name", "") if actor else ""
-        # New server descriptions can already contain the Chinese name.
+        # New core descriptions can already contain the Chinese name.
         if name and original[match.end():].lstrip().startswith(name):
             return match[0]
         return _actor_name(view, match[0])
@@ -87,9 +88,9 @@ def actor_line(actor, detailed=False):
     elif actor.get("ended"):
         result += "  已结束操作"
     result += "  [%s]" % _conditions(actor)
-    if actor.get("slots"):
+    if detailed and actor.get("slots"):
         result += "\n  法术位 " + "、".join("%s环:%s" % pair for pair in actor["slots"].items())
-    if actor.get("resources"):
+    if detailed and actor.get("resources"):
         names = {"potions": "药水", "second_wind": "回气", "ki": "气"}
         result += "\n  资源 " + "、".join("%s:%s" % (names.get(key, key), value)
                                       for key, value in actor["resources"].items())
@@ -121,7 +122,18 @@ def render_growth(actor):
 
 
 def render_party(view):
-    return "队伍：\n" + "\n".join(actor_line(actor)+"\n  "+render_growth(actor) for actor in view.get("party", []))
+    return "队伍：\n" + "\n".join(actor_line(actor, detailed=True)+"\n  "+render_growth(actor) for actor in view.get("party", []))
+
+
+def render_event_summary(events, limit=6):
+    """Keep casualties, danger and outcomes ahead of routine dice chatter."""
+    important = {"victory", "defeated", "downed", "death", "reaction", "campaign_reward", "campaign_complete"}
+    ranked = sorted(enumerate(events), key=lambda pair: (pair[1].get("kind") in important, pair[0]), reverse=True)
+    chosen = sorted(ranked[:limit])
+    result = render_events([event for _, event in chosen])
+    if len(events) > limit:
+        result += "\n其余 %s 条已收进日志；输入 log 10 查看。" % (len(events) - limit)
+    return result
 
 
 def render_events(events, detailed=False):
@@ -141,14 +153,17 @@ def render_view(view, selected=None):
         view.get("name", "远征队"), PHASES.get(phase, phase), view.get("round", "?"),
         view.get("revision", "?")),
         "当前可操作：" + ("、".join(_actor_name(view, actor_id) for actor_id in view.get("active", [])) or "无")]
+    if view.get('campaign'):
+        campaign = view['campaign']
+        lines.insert(0, '%s · 第%s/%s站 · %s · 金币%s%s' % (
+            campaign['name'], campaign['stage'], campaign['total'], campaign['encounter'], campaign['gold'],
+            ' · 已通关' if campaign['completed'] else ''))
     actor = _actor(view, selected)
     if actor:
         lines.append("已选 %s %s，位于 %s；移动剩余 %s米，动作 %s，附赠动作 %s。" % (
             actor["id"], actor.get("name", ""), actor.get("position", "未知"),
             _number(actor.get("budgets", {}).get("movement", 0)),
             actor.get("budgets", {}).get("action", 0), actor.get("budgets", {}).get("bonus", 0)))
-    if view.get("initiative_order"):
-        lines.append("先攻顺序（已揭示）：" + " → ".join(entry["id"] + ("（当前组）" if entry["current"] else "") for entry in view["initiative_order"]))
     living = [enemy for enemy in view.get("enemies", []) if enemy.get("hp", 0) > 0]
     party = view.get("party", [])
     lines.append("局势：清醒 %s 名 / 倒地 %s 名 / 死亡 %s 名；%s 名可见敌人仍在战斗。" % (
@@ -157,7 +172,7 @@ def render_view(view, selected=None):
         sum("dead" in actor.get("conditions", []) for actor in party), len(living)))
     game_map = view.get("map", {})
     if game_map:
-        lines.append(render_map(view, selected=selected))
+        lines.append(render_map(view, selected=selected, detailed=False))
     if view.get("pending"):
         pending = view["pending"]
         lines.append("待选反应：%s" % _named_text(pending.get("description", "请选择是否使用反应。"), view))
@@ -293,8 +308,8 @@ def render_actions(view, actor_id):
     return render_menu_actions(view, actor_id)
 
 
-def render_options(entries):
-    """Render server-provided legal target and landmark candidates."""
+def render_options(entries, compact=False):
+    """Render core-provided legal target and landmark candidates."""
     lines = []
     for number, entry in enumerate(entries, 1):
         identity = entry.get("target", entry.get("destination", entry.get("id", "")))
@@ -322,9 +337,9 @@ def render_options(entries):
             parts.append("本回合不可达：" + entry.get("reason", "当前无法到达") if entry.get("destination")
                          else "不可用：" + entry.get("reason", "当前目标不合法"))
         lines.append(" | ".join(parts))
-        if entry.get("distance_description"):
+        if entry.get("distance_description") and not compact:
             lines.append("   距离说明：" + entry["distance_description"])
-        if entry.get("description"):
+        if entry.get("description") and not compact:
             lines.append("   " + _brief(entry["description"]))
         if preview.get("warnings"):
             lines.append("   提示：" + "；".join(preview["warnings"]))
@@ -382,7 +397,7 @@ def _wrap_map_text(line, width=78):
     return lines
 
 
-def render_map(view, selected=None, reachable=None):
+def render_map(view, selected=None, reachable=None, detailed=True):
     game_map = view.get("map", {})
     width, height = game_map.get("width", 0), game_map.get("height", 0)
     if not width or not height:
@@ -446,6 +461,8 @@ def render_map(view, selected=None, reachable=None):
             # are also listed below, including terrain covered by an actor.
             cells.append(marker[:3].center(3))
         lines.append("%3s |%s|" % (row, "|".join(cells)))
+    # Repeat coordinates at the bottom so distant rows are easy to locate.
+    lines.append("    |" + "|".join(name.center(3) for name in columns) + "|")
     selection_label = "%s*" % selected if selected else "P编号*"
     notes = ["图例：%s 当前选中；P1-P4 队员，E1 等为存活敌人。" % selection_label,
              "# 墙体；<> 门洞；/ 台阶；^ 高地；! 危险；: 困难；. 普通地面。"]
@@ -459,7 +476,7 @@ def render_map(view, selected=None, reachable=None):
         party.append("%s %s%s 生命%s/%s %s %s" % (
             actor["id"], actor.get("name", ""), "（已选）" if actor["id"] == selected else "",
             actor.get("hp", "?"), actor.get("max_hp", "?"), actor.get("position", "未知"), status))
-    if party:
+    if party and detailed:
         notes.append("队员：")
         notes.extend("  " + actor for actor in party)
     enemies = ["%s %s 生命%s/%s %s" % (actor["id"], actor.get("name", ""), actor.get("hp", "?"), actor.get("max_hp", "?"), actor.get("position", "未知"))
@@ -467,19 +484,23 @@ def render_map(view, selected=None, reachable=None):
     notes.append("可见敌人：" + ("；".join(enemies) or "当前无可见敌人，敌人位置可能未知"))
     for remembered in view.get("last_seen", []):
         notes.append("%s? 最后目击：第 %s 回合 %s（当前位置未知）" % (remembered["id"], remembered["round"], remembered["position"]))
-    if fallen_enemies:
+    if fallen_enemies and detailed:
         notes.append("阵亡敌人：" + "；".join("%s %s %s" % (actor["id"], actor.get("name", ""), actor.get("position", "未知"))
                                              for actor in fallen_enemies))
         notes.append("遗体不阻挡移动；当前切片没有尸体掉落或搜刮。")
-    if landmarks:
+    if landmarks and detailed:
         notes.append("地标：" + "；".join("%s %s" % (landmark.get("position", "?"), landmark.get("name", "")) for landmark in landmarks))
         for landmark in landmarks:
             if any(word in landmark.get("name", "") for word in ("门洞", "石阶", "台阶", "瞭望台")) and landmark.get("description"):
                 notes.append("  %s：%s" % (landmark["name"], _brief(landmark["description"])))
-    if game_map.get("walls") or game_map.get("heights"):
+    if detailed and (game_map.get("walls") or game_map.get("heights")):
         notes.append("墙体阻挡通行和视线，高差也可能遮挡；沿门洞或石阶调整站位，目标列表会说明实际限制。")
     if game_map.get("hazards"):
         notes.append("危险位置：" + "、".join(game_map["hazards"]) + "；进入危险格可能受伤，移动预览会列出具体危险。")
+    if not detailed:
+        if landmarks:
+            notes.append("地标：" + "；".join("%s %s" % (mark.get("position", "?"), mark.get("name", "")) for mark in landmarks))
+        notes.append("map 展开地标与地形详情；inspect 格坐标 查单格；party 查资源。")
     for line in notes:
         lines.extend(_wrap_map_text(line))
     return "\n".join(lines)

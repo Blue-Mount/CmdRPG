@@ -11,7 +11,7 @@ import pytest
 from client.cli import Client, read_json
 from client.transport import LocalTransport, TransportError
 from core.engine import Engine, GameError
-from server.storage import Repository, RepositoryError
+from saves.storage import Repository, RepositoryError
 from tools.play_slice import choose
 
 
@@ -261,7 +261,6 @@ def test_stdlib_terminal_settlement_rest_and_new_run(tmp_path):
         assert repository.get_view(old_id)["outcome"] == "victory"
         old_state = repository._load(old_id)
     environment = dict(os.environ, PYTHONUTF8="1")
-    environment.pop("CMDRPG_URL", None)
     result = subprocess.run(
         [sys.executable, "-S", "-u", "-m", "client", "--run", old_id,
          "--db", str(database), "--config", str(config)],

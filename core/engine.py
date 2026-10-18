@@ -7,6 +7,7 @@ import uuid
 from .content import load_content
 from . import dice, spatial
 from .growth import GrowthMixin, DATA, SELF, FRIENDLY, PROF, proficiency, snapshot, recalculate
+from .campaign import CampaignMixin, load_campaign, COMMANDS as CAMPAIGN_COMMANDS, CONTENT_VERSION as CAMPAIGN_VERSION
 
 
 class GameError(Exception):
@@ -19,7 +20,7 @@ def modifier(score):
     return (score - 10) // 2
 
 
-class Engine(GrowthMixin):
+class Engine(CampaignMixin, GrowthMixin):
     def __init__(self, content=None):
         self.content = content if content is not None else load_content()
         self.content = deepcopy(self.content)
@@ -27,17 +28,27 @@ class Engine(GrowthMixin):
         self.content["items"].update(deepcopy(DATA["items"]))
         self.content["version"]="0.3.0-m3"
         self.content["rules_version"]="0.3.0-provisional"
+        self.campaign_content = load_campaign()
 
     def _check_version(self, state):
+        if state.get('campaign') and state['campaign'].get('version') != self.campaign_content['version']:
+            raise GameError('version_mismatch', '战役版本不匹配，请使用对应版本服务。')
         if any(a.get("growth_version") not in (None,1) for a in state.get("actors",{}).values()):
             raise GameError("version_mismatch","成长存档版本不受支持，请使用对应版本服务。")
         if (state.get('content_version'),state.get('rules_version'),state.get('save_version'))==('0.1.0-slice','0.1.0-provisional',1):
             return  # Explicit legacy adapter: no mutation or implicit resource grants.
         for field, content_field in (("content_version", "version"), ("rules_version", "rules_version"), ("save_version", "save_version")):
-            if state.get(field) != self.content[content_field]:
+            expected = CAMPAIGN_VERSION if field == 'content_version' and state.get('campaign') else self.content[content_field]
+            if state.get(field) != expected:
                 raise GameError("version_mismatch", "存档版本与内容包不匹配，请使用对应版本服务或明确迁移。")
 
-    def new_run(self, name="远征队", templates=None, seed=None, *, levels=None, loadouts=None):
+    def new_run(self, name="远征队", templates=None, seed=None, *, levels=None, loadouts=None, campaign=False, _carry=None):
+        if type(campaign) is not bool:
+            raise GameError('invalid_campaign', 'campaign 须为布尔值。')
+        if campaign:
+            if levels is not None or loadouts is not None:
+                raise GameError('invalid_campaign', '正式战役从1级起步，不接受开发局配置。')
+            return self._new_campaign(name, templates, seed)
         templates = ["fighter", "monk", "wizard", "cleric"] if templates is None else templates
         if not isinstance(name, str) or not name.strip() or len(name) > 40:
             raise GameError("invalid_party", "队伍名应为 1 至 40 个字符。")
@@ -93,6 +104,21 @@ class Engine(GrowthMixin):
                 if command.get('type') not in ('equip','prepare'): raise GameError('invalid_setup','战前配置只接受装备与准备。')
                 state,_=self._management_execute(state,command)
             state['phase']='combat'; state['revision']=0
+        if _carry:
+            state.update({key: deepcopy(value) for key, value in _carry.items() if key != 'party'})
+            state['content_version'] = CAMPAIGN_VERSION
+            for i in range(1, 5):
+                aid = f'P{i}'
+                if 'party' in _carry:
+                    position = state['actors'][aid]['position']
+                    state['actors'][aid] = deepcopy(_carry['party'][aid])
+                    state['actors'][aid].update(position=position, ended=True, attacked=False,
+                        budgets={'action': 0, 'bonus': 0, 'reaction': 1, 'movement': 0})
+                    for field in ('last_turn_round', 'attacks_remaining'):
+                        state['actors'][aid].pop(field, None)
+                else:
+                    actor = state['actors'][aid]
+                    actor['inventory'] = list(dict.fromkeys(v for v in actor['equipment'].values() if v))
         initiatives = {actor_id: dice.die(state, 4) + modifier(a["stats"]["dex"]) for actor_id, a in state["actors"].items()}
         # Stable ties: party first, then higher Dexterity, then actor ID.
         state["turn_order"] = sorted(state["actors"], key=lambda aid: (-initiatives[aid], state["actors"][aid]["side"] != "party", -state["actors"][aid]["stats"]["dex"], aid))
@@ -197,9 +223,10 @@ class Engine(GrowthMixin):
             "round": state["round"], "active": self._active(state), "party": party, "enemies": enemies,
             "map": deepcopy(state["map"]), "pending": pending, "recent_events": deepcopy(state["event_log"][-6:]),
             "battle_summary": deepcopy(state.get("battle_summary", {})),
+            "campaign": self._campaign_view(state),
             "development": state.get("development",False), "outcome": state["outcome"], "content_version": state["content_version"], "rules_version": state["rules_version"],
             "encounter_name": state["encounter_name"], "short_rests": state["short_rests"],
-            "settlement": {"completed": True, "next_encounter": None, "loot_available": False,
+            "settlement": self._campaign_settlement(state) if state.get('campaign') else {"completed": True, "next_encounter": None, "loot_available": False,
                            "loot_description": "本场没有配置可拾取战利品；目前无法搜刮遗体。"}
             if state["phase"] == "victory" else None,
         }
@@ -498,6 +525,8 @@ class Engine(GrowthMixin):
         if not isinstance(command, dict) or not isinstance(command.get("type"), str):
             raise GameError("invalid_command", "命令需要 type 字段。")
         kind = command["type"]
+        if kind in CAMPAIGN_COMMANDS:
+            return self._campaign_preview(state, command)
         if kind=="practice": return self._practice_preview(state,command)
         if kind in ("levelup","equip","prepare","recover"):
             return self._management_preview(state,command)
@@ -524,7 +553,8 @@ class Engine(GrowthMixin):
             if state["short_rests"] <= 0:
                 raise GameError("invalid_rest", "全队短休不可用：本周目的两次短休已用完。")
             result["description"] = "全队短休：所有未死亡队员恢复一半最大生命（向上取整，最多到生命上限）与短休资源；不恢复法术位、药水，也不会复活已死亡队员。"
-            result["warnings"].append("本切片没有后续战斗，短休仅用于演示；仍会消耗次数。")
+            if not state.get('campaign'):
+                result["warnings"].append("本切片没有后续战斗，短休仅用于演示；仍会消耗次数。")
             result["cost"] = {"short_rests": 1}
             result["rest_effects"] = []
             for member in state["actors"].values():
@@ -712,6 +742,9 @@ class Engine(GrowthMixin):
         return threats
 
     def execute(self, state, command):
+        if isinstance(command, dict) and isinstance(command.get('type'), str) and command['type'] in CAMPAIGN_COMMANDS:
+            self._check_version(state)
+            return self._campaign_execute(state, command)
         if isinstance(command,dict) and command.get("type")=="practice":
             self._check_version(state)
             return self._practice_execute(state,command)
@@ -989,7 +1022,10 @@ class Engine(GrowthMixin):
             state["phase"], state["outcome"] = "victory", "victory"
             state["pending"] = None
             state["active_group"] = []
-            self._emit(state, "victory", "前哨战胜利！本切片已完成；完整成长、战利品和战役将在后续阶段接入。")
+            if state.get('campaign'):
+                self._campaign_reward(state)
+            else:
+                self._emit(state, "victory", "前哨战胜利！可进入成长、装备、独立演练，或新开五站远征战役。")
         elif not living_party:
             state["phase"], state["outcome"] = "defeated", "defeated"
             state["pending"] = None
