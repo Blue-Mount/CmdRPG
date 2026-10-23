@@ -35,6 +35,7 @@ def validate_growth(data):
         "aid",
         "mass_healing_word",
         "preserve_life",
+        "stunning_strike",
     }
     if (
         data.get("version") != 1
@@ -71,6 +72,7 @@ def validate_growth(data):
             "aid": ("action", 2, 9, None),
             "mass_healing_word": ("bonus", 3, 18, None),
             "preserve_life": ("action", 0, 9, "channel"),
+            "stunning_strike": ("action", 0, 1.5, "ki"),
         }
         if (b["cost"], b["level"], b["range"], b.get("resource")) != specs[key]:
             raise ValueError("growth: effect metadata mismatch")
@@ -156,6 +158,13 @@ def validate_growth(data):
             ):
                 raise ValueError("growth: ability unlocked without slot")
     for key, b in data["items"].items():
+        BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus"}
+        if set(b) - {"name", "slot", "kind", "dice", "damage_type", "category", "ac", "two_handed", "base_weapon", "description"} - BONUSES:
+            raise ValueError("growth: unknown equipment effect")
+        for field in BONUSES & b.keys():
+            _number(b[field], "equipment bonus", 0, 3, integer=True)
+        if "base_weapon" in b and (not isinstance(b['base_weapon'], str) or b["base_weapon"] not in (base["items"] | data["items"])):
+            raise ValueError("growth: unknown base weapon")
         if (
             b.get("kind") not in ("weapon", "armor", "shield")
             or b.get("slot")
@@ -253,6 +262,7 @@ def snapshot(actor, level, items):
 
 
 def recalculate(a, items):
+    from .equipment import bonus
     eq = a["equipment"]
     dex = mod(a["stats"]["dex"])
     armor = items.get(eq.get("armor"), {})
@@ -265,9 +275,10 @@ def recalculate(a, items):
     ac += items.get(eq.get("off_hand"), {}).get("ac", 0)
     if armor and "defence" in a.get("passives", []):
         ac += 1
+    ac += bonus(a, items, "ac_bonus")
     a["base_ac"] = ac
     if "mage_armor" in a["effects"] and not armor:
-        ac = max(ac, 13 + dex + items.get(eq.get("off_hand"), {}).get("ac", 0))
+        ac = max(ac, 13 + dex + items.get(eq.get("off_hand"), {}).get("ac", 0) + bonus(a, items, "ac_bonus"))
     a["ac"] = ac
     a["weapon"] = eq.get("main_hand") or "monk_fists"
     item = items[a["weapon"]]
@@ -285,6 +296,7 @@ def recalculate(a, items):
         a["speed"] = (
             12 if a["level"] >= 2 and not armor and not eq.get("off_hand") else 9
         )
+    a["speed"] = (a["speed"] if a["template"] == "monk" else DATA["classes"][a["template"]][str(a["level"])]["speed"]) + bonus(a, items, "speed_bonus")
 
 
 class GrowthMixin:
@@ -321,8 +333,9 @@ class GrowthMixin:
                 for k, v in a["equipment"].items()
             )
             setup.append(dict(type="prepare", actor=a["id"], spells=a["prepared"]))
+        replay_engine = Engine(self._campaign_pack('forge')) if state.get('battle_slice') else self
         fresh = Engine.new_run(
-            self,
+            replay_engine,
             state["name"],
             [a["template"] for a in party],
             state["rng_state"],
@@ -331,8 +344,10 @@ class GrowthMixin:
         )
         fresh["id"] = state["id"]
         fresh["development"] = True
+        if state.get('battle_slice'): fresh['battle_slice'] = True
         fresh["battle_snapshot"]["id"] = state["id"]
         fresh["battle_snapshot"]["development"] = True
+        if state.get('battle_slice'): fresh['battle_snapshot']['battle_slice'] = True
         initial_events = fresh["event_log"]
         fresh["event_log"] = deepcopy(state["event_log"])
         fresh["event_seq"] = state["event_seq"]
@@ -448,7 +463,7 @@ class GrowthMixin:
                 description = "准备法术：" + "、".join(
                     self.content["abilities"][x]["name"] for x in spells
                 )
-        return dict(
+        result = dict(
             command=deepcopy(c),
             revision=state["revision"],
             cost={},
@@ -456,6 +471,11 @@ class GrowthMixin:
             warnings=[],
             description=description,
         )
+        if kind == "equip":
+            from .equipment import compare
+            result["equipment_comparison"] = compare(a, item, slot, self.content["items"])
+            result["warnings"].extend(result["equipment_comparison"]["warnings"])
+        return result
 
     def _management_execute(self, state, c):
         self._management_preview(state, c)
@@ -543,16 +563,6 @@ class GrowthMixin:
             )
             self._in_range(state, a, t, b["range"])
             targets = [t]
-            if aid == "fireball":
-                targets = [
-                    x
-                    for x in state["actors"].values()
-                    if self._visible(state, x)
-                    and x["side"] != a["side"]
-                    and "dead" not in x["conditions"]
-                    and spatial.distance(state["map"], t["position"], x["position"])
-                    <= 6
-                ]
         result = dict(
             command=deepcopy(c),
             revision=state["revision"],
@@ -561,27 +571,14 @@ class GrowthMixin:
             description=b["name"] + "：" + b["description"],
             warnings=[],
         )
-        if aid in ("flurry", "scorching_ray"):
+        if aid == "flurry":
             from . import dice
-
-            adv, dis, height = self._attack_context(
-                state, a, targets[0], ranged=aid == "scorching_ray"
-            )
-            stat = (
-                ("dex" if a["stats"]["dex"] >= a["stats"]["str"] else "str")
-                if aid == "flurry"
-                else a["spell_stat"]
-            )
+            adv, dis, height = self._attack_context(state, a, targets[0])
+            stat = "dex" if a["stats"]["dex"] >= a["stats"]["str"] else "str"
             result["hit_probability"] = dice.hit_probability(
                 proficiency(a) + mod(a["stats"][stat]) + height,
-                targets[0]["ac"],
-                adv,
-                dis,
-                self._blessed(a),
-            )
-            result["attack_count"] = 2 if aid == "flurry" else c.get("slot", 2) + 1
-        elif aid == "fireball":
-            result["save_dc"] = 8 + proficiency(a) + mod(a["stats"]["int"])
+                targets[0]["ac"], adv, dis, self._blessed(a))
+            result["attack_count"] = 2
         return result
 
     def _casting_equipment(self, a):
@@ -625,59 +622,22 @@ class GrowthMixin:
                     t["effects"]["aid"] = {"source": a["id"], "amount": n}
                 self._heal(state, t, delta, "援助术")
         elif aid in ("mass_healing_word", "preserve_life", "aid"):
+            from .equipment import bonus
             n, detail = dice.roll(state, f"{slot-2}d4")
             for t in targets:
                 self._heal(
                     state,
                     t,
-                    n + mod(a["stats"]["wis"]) + 2 + slot,
+                    n + mod(a["stats"]["wis"]) + 2 + slot + bonus(a, self.content["items"], "healing_bonus"),
                     "群体治愈真言",
                     detail,
                 )
-        elif aid in ("flurry", "scorching_ray"):
-            for _ in range(2 if aid == "flurry" else slot + 1):
+        elif aid == "flurry":
+            for index in range(1, 3):
                 if t["hp"] <= 0:
-                    break
-                self._attack(
-                    state,
-                    a,
-                    t,
-                    ("1d6" if a["level"] >= 3 else "1d4") if aid == "flurry" else "2d6",
-                    "bludgeoning" if aid == "flurry" else "fire",
-                    (
-                        ("dex" if a["stats"]["dex"] >= a["stats"]["str"] else "str")
-                        if aid == "flurry"
-                        else a["spell_stat"]
-                    ),
-                    ranged=aid != "flurry",
-                    damage_modifier=None if aid == "flurry" else 0,
-                    proficiency_override=proficiency(a),
-                )
-        elif aid == "fireball":
-            centre = state["actors"][c["target"]]
-            from . import spatial
-
-            targets = [
-                x
-                for x in state["actors"].values()
-                if "dead" not in x["conditions"]
-                and spatial.distance(state["map"], centre["position"], x["position"])
-                <= 6
-            ]
-            n, detail = dice.roll(state, "8d6")
-            dc = 8 + proficiency(a) + mod(a["stats"]["int"])
-            for t in targets:
-                if (
-                    t["side"] == a["side"]
-                    and a["template"] == "wizard"
-                    and a["level"] >= 2
-                ):
+                    self._emit(state, "attack_skip", f"{a['id']} 疾风连击第{index}段：目标已被击败，跳过。")
                     continue
-                self._damage(
-                    state,
-                    t,
-                    n // 2 if self._save(state, t, "dex", dc, "火球术") else n,
-                    "fire",
-                    "火球术",
-                    detail,
-                )
+                self._emit(state, "attack_segment", f"{a['id']} 疾风连击第{index}/2段 → {t['id']}。")
+                self._attack(state, a, t, "1d6" if a["level"] >= 3 else "1d4", "bludgeoning",
+                             "dex" if a["stats"]["dex"] >= a["stats"]["str"] else "str",
+                             proficiency_override=proficiency(a))

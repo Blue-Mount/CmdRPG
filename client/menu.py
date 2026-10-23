@@ -5,7 +5,8 @@ import re
 
 from .parser import ParseError
 from .render import (render_map, render_menu_actions, render_options,
-                     render_party, render_preview, render_rules, render_growth)
+                     render_party, render_preview, render_rules, render_growth,
+                     render_actor_card, render_action_card)
 
 
 class TerminalMenu:
@@ -119,78 +120,92 @@ class TerminalMenu:
         client.menu = menu
         return menu
 
-    def show(self):
+    def render(self):
+        lines = []
         menu = self.build()
         client = self.client
         if self.stage != "actions":
-            client.output(self.context())
+            lines.append(self.context())
         if self.stage == "home":
             for n, actor in enumerate(client.view.get("party", []), 1):
                 status = actor.get("status") or ("可操作" if actor["id"] in client.view.get("active", []) else "暂不可操作，可查看技能")
-                client.output("%s. %s %s  生命 %s/%s  [%s]" % (n, actor["id"], actor["name"], actor["hp"], actor["max_hp"], status))
-            client.output("5 地图  6 队伍资源  7 详细日志  8 操作帮助")
+                lines.append("%s. %s %s  生命 %s/%s  [%s]" % (n, actor["id"], actor["name"], actor["hp"], actor["max_hp"], status))
+                lines.extend("   " + line for line in render_actor_card(actor).splitlines()[1:])
+            lines.append("5 地图  6 队伍资源  7 详细日志  8 操作帮助")
             if "9" in menu:
-                client.output('9 战败重试' if menu['9'][0] == 'retry' else '9 新开五站远征战役（保留本局）')
+                lines.append('9 战败重试' if menu['9'][0] == 'retry' else '9 新开五站远征战役（保留本局）')
         elif self.stage == "settlement":
             campaign = client.view.get('campaign')
             if campaign:
-                client.output('%s · %s/5站 · 金币%s · %s' % (campaign['name'], campaign['stage'], campaign['gold'],
+                lines.append('%s · %s/5站 · 金币%s · %s' % (campaign['name'], campaign['stage'], campaign['gold'],
                               '远征已通关，裂隙关闭！' if campaign['completed'] else '本场胜利，全队已成长至%s级' % campaign['unlocked_level']))
                 for n, (kind, entry) in menu.items():
                     if kind == 'campaign_command':
-                        client.output(n + ' ' + entry[1] + ('（20金币；全队复苏、生命/法术位/职业资源全恢复）' if entry[0]['type'] == 'camp' else ''))
-                client.output('16 营地商店（药水与装备）  12 新开战役（保留当前结局）')
+                        lines.append(n + ' ' + entry[1] + ('（20金币；全队复苏、生命/法术位/职业资源全恢复）' if entry[0]['type'] == 'camp' else ''))
+                lines.append('16 营地商店（药水与装备）  12 新开战役（保留当前结局）')
             else:
-                client.output('战斗结果：胜利。12 新开五站远征战役（保留本局）')
+                lines.append('战斗结果：胜利。12 新开五站远征战役（保留本局）')
             summary = client.view.get("battle_summary", {})
             if summary:
-                client.output("本场摘要：%s 回合；倒地 %s 次，死亡 %s；消耗法术位 %s、药水 %s；双方累计伤害 %s、治疗 %s。" % (client.view.get("round", "?"), summary.get("downed", 0), summary.get("deaths", 0), summary.get("slots", 0), summary.get("potions", 0), summary.get("damage", 0), summary.get("healing", 0)))
+                lines.append("本场摘要：%s 回合；倒地 %s 次，死亡 %s；消耗法术位 %s、药水 %s；双方累计伤害 %s、治疗 %s。" % (client.view.get("round", "?"), summary.get("downed", 0), summary.get("deaths", 0), summary.get("slots", 0), summary.get("potions", 0), summary.get("damage", 0), summary.get("healing", 0)))
             remaining = client.view.get("short_rests", 0)
-            client.output("1 全队短休（剩余 %s 次%s）" % (
+            lines.append("1 全队短休（剩余 %s 次%s）" % (
                 remaining, "，已用完" if remaining <= 0 else "；不恢复法术位" if campaign else "；仅用于演示，无后续战斗"))
-            client.output("2 查看全队资源  3 新开一场战斗（同阵容、新周目）")
-            client.output("4 查看地图  5 详细日志  6 战利品说明")
-            client.output("  ".join(n+" "+v+" 成长与装备" for n,(k,v) in menu.items() if k=="growth"))
-            if "11" in menu: client.output("11 沿用当前成长与装备重新演练（全部资源刷新）")
+            lines.append("2 查看全队资源  3 新开一场战斗（同阵容、新周目）")
+            lines.append("4 查看地图  5 详细日志  6 战利品说明")
+            lines.append("  ".join(n+" "+v+" 成长与装备" for n,(k,v) in menu.items() if k=="growth"))
+            if "11" in menu: lines.append("11 沿用当前成长与装备重新演练（全部资源刷新）")
             if not campaign:
-                client.output((client.view.get("settlement") or {}).get("loot_description", "本场没有可拾取战利品，暂时无法搜刮遗体。"))
+                lines.append((client.view.get("settlement") or {}).get("loot_description", "本场没有可拾取战利品，暂时无法搜刮遗体。"))
         elif self.stage == 'shop_party':
-            client.output('金币 %s；购买物品直接进入所选队员背包。' % client.view['campaign']['gold'])
+            lines.append('金币 %s；购买物品直接进入所选队员背包。' % client.view['campaign']['gold'])
             for n, (_, aid) in menu.items():
-                client.output(n + ' ' + aid + ' ' + next(a['name'] for a in client.view['party'] if a['id'] == aid))
+                lines.append(n + ' ' + aid + ' ' + next(a['name'] for a in client.view['party'] if a['id'] == aid))
         elif self.stage == 'shop':
-            client.output('金币 %s；装备购买后进入成长与装备穿戴。' % client.view['campaign']['gold'])
+            lines.append('金币 %s；装备购买后进入成长与装备穿戴。' % client.view['campaign']['gold'])
             for n, item in enumerate(client.view['campaign']['shop'], 1):
                 owned = item['id'] in self.actor().get('inventory', [])
-                client.output('%s. %s · %s金币%s' % (n, item['name'], item['price'], '（已拥有）' if owned else ''))
+                lines.append('%s. %s · %s金币%s' % (n, item['name'], item['price'], '（已拥有）' if owned else ''))
+                if item.get('description'): lines.append('   ' + item['description'])
         elif self.stage == "growth":
-            client.output(render_growth(self.actor()))
-            for n,(_,entry) in menu.items(): client.output(n+'. '+entry[0])
-            client.output('选择后先预览，c确认；0返回结算。非熟练护甲会阻止施法并使攻击劣势。')
+            lines.append(render_growth(self.actor()))
+            for n,(_,entry) in menu.items(): lines.append(n+'. '+entry[0])
+            lines.append('选择后先预览，c确认；0返回结算。非熟练护甲会阻止施法并使攻击劣势。')
         elif self.stage == "actions":
-            client.output(render_menu_actions(client.view, self.selected, compact=self.compact))
+            lines.append(render_menu_actions(client.view, self.selected, compact=self.compact, cards=bool(client.presenter)))
             reads = {"map": "地图", "party": "队伍资源", "log": "详细日志", "rules": "技能与规则说明", "help": "操作帮助"}
-            client.output("  ".join("%s %s" % (n, reads[value]) for n, (kind, value) in menu.items() if kind == "read"))
+            lines.append("  ".join("%s %s" % (n, reads[value]) for n, (kind, value) in menu.items() if kind == "read"))
             if not self.actor().get("menu_actions"):
-                client.output("服务端未提供中文行动菜单，请升级服务端；原快捷命令仍可使用。")
+                lines.append("服务端未提供中文行动菜单，请升级服务端；原快捷命令仍可使用。")
         elif self.stage in ("target", "move"):
+            lines.append(render_action_card(client.view, self.selected, self.action))
             if self.stage == "move":
-                client.output(render_map(client.view, self.selected, self.options.get("reachable", []), detailed=False))
-                client.output("常用目的地（路径成本由服务端计算）：")
-            client.output(render_options(self.entries, compact=True))
+                if not client.presenter:
+                    lines.append(render_map(client.view, self.selected, self.options.get("reachable", []), detailed=False))
+                lines.append("常用目的地（路径成本由服务端计算）：")
+            lines.append(render_options(self.entries, compact=True))
             if self.stage == "move":
-                client.output("也可输入格坐标，如 G6；+ 表示本回合可沿真实路径到达。")
+                lines.append("也可输入格坐标，如 G6；+ 表示本回合可沿真实路径到达。")
             elif self.action.get("target_mode") == "multi":
-                client.output("输入多个编号，如 1,2,3（最多 %s 个）；单个编号也可以。" % self.options.get("max_targets", self.action.get("max_targets", 3)))
+                lines.append("输入多个编号，如 1,2,3（最多 %s 个）；单个编号也可以。" % self.options.get("max_targets", self.action.get("max_targets", 3)))
+            elif self.action.get("target_mode") == "allocation":
+                lines.append("按段输入恰好 %s 个目标编号，可重复（如 1,1,2）；单个编号将全部分配给该目标。" % self.options['max_targets'])
+            elif self.action.get("target_mode") == "ground":
+                lines.append("输入地面格坐标，如 G6；也可选敌人编号作为爆心。")
         elif self.stage == "reaction":
-            client.output(client.view["pending"].get("description", "请选择反应。"))
-            client.output("1 借机攻击（消耗 1 次反应）  2 放弃反应（不消耗）")
+            lines.append(client.view["pending"].get("description", "请选择反应。"))
+            lines.append("1 借机攻击（消耗 1 次反应）  2 放弃反应（不消耗）")
         elif self.stage == "recovery":
-            client.output("9 恢复未确认请求；已保存原请求编号，请先恢复回执。")
+            lines.append("9 恢复未确认请求；已保存原请求编号，请先恢复回执。")
         elif self.stage == "confirm":
-            client.output("c 确认执行；数字不会执行行动。")
-        client.output(("0 返回  " if self.stage in ("actions", "target", "move", "confirm", "growth", "shop_party", "shop") else "") + "q 退出（已执行动作自动保存）")
+            lines.append("c 确认执行；数字不会执行行动。")
+        lines.append(("0 返回  " if self.stage in ("actions", "target", "move", "confirm", "growth", "shop_party", "shop") else "") + "q 退出（已执行动作自动保存）")
         self.revision = client.view.get("revision") if self.stage not in ("confirm", "target", "move") else self.revision
+
+        return "\n".join(lines)
+
+    def show(self):
+        self.client.present("decision", self.render())
 
     def check_revision(self):
         expected = self.revision
@@ -239,12 +254,13 @@ class TerminalMenu:
         self.stage = "confirm"
         self.confirmation = {"operation": "commands", "number": number}
         self.revision = self.client.previews[number]["revision"]
-        self.client.output(self.context())
-        self.client.output(render_preview(number, self.client.preview_result, self.revision, self.client.view))
+        self.client.present("context", self.context())
+        self.client.present("preview", render_preview(number, self.client.preview_result, self.revision, self.client.view))
 
     def select_entries(self, numbers):
         self.check_revision()
-        if len(set(numbers)) != len(numbers):
+        mode = self.action.get("target_mode")
+        if mode != "allocation" and len(set(numbers)) != len(numbers):
             raise ParseError("目标编号不能重复。")
         selected = []
         for number in numbers:
@@ -255,7 +271,7 @@ class TerminalMenu:
                 raise ParseError("%s不可用：%s" % (entry["name"], entry.get("reason", "目标不合法")))
             selected.append(entry)
         mode = self.action.get("target_mode")
-        if mode != "multi" and len(selected) != 1:
+        if mode not in ("multi", "allocation") and len(selected) != 1:
             raise ParseError("此行动只能选择一个条目。")
         if len(selected) > self.options.get("max_targets", self.action.get("max_targets", 3)):
             raise ParseError("选择的目标数量超过技能上限。")
@@ -263,6 +279,10 @@ class TerminalMenu:
         if mode == "move":
             command["destination"] = selected[0]["destination"]
         elif mode == "multi":
+            command["targets"] = [entry["target"] for entry in selected]
+        elif mode == "allocation" and len(selected) > 1:
+            if len(selected) != self.options['max_targets']:
+                raise ParseError("请为每段攻击指定目标，或只选一个编号分配全部攻击。")
             command["targets"] = [entry["target"] for entry in selected]
         else:
             command["target"] = selected[0]["target"]
@@ -316,6 +336,21 @@ class TerminalMenu:
     def handle(self, line):
         """Return None for a legacy command, or a bool for handled input."""
         line = line.strip().lower()
+        if line == "rules":
+            self.client.refresh(display=False)
+            if self.action and self.action.get("command"):
+                self.client.output(render_action_card(self.client.view, self.selected, self.action, detailed=True))
+            elif self.selected:
+                self.client.output(render_rules(self.client.view, self.selected))
+            else:
+                raise ParseError("先选择角色或技能，再展开规则。")
+            return True
+        if line in ("result", "details"):
+            from .render import render_result
+            result = self.client.last_result
+            self.client.output(render_result(**result, detailed=line == "details") if result
+                               else "本次会话尚无已确认结算；log 10 查看已保存历史。")
+            return True
         if line == "q":
             return self.client.handle("quit")
         if line == "0":
@@ -334,9 +369,9 @@ class TerminalMenu:
                 self.check_revision()
                 self.client._write(confirmation["operation"], confirmation.get("extra"), revision=self.revision)
             return True
-        if self.stage == "move" and re.fullmatch(r"[a-z]+[1-9][0-9]*", line):
+        if (self.stage == "move" or self.stage == "target" and self.action.get("target_mode") == "ground") and re.fullmatch(r"[a-z]+[1-9][0-9]*", line):
             self.check_revision()
-            self.preview({**deepcopy(self.action["command"]), "destination": line.upper()}, "move")
+            self.preview({**deepcopy(self.action["command"]), "destination": line.upper()}, self.stage)
             return True
         if self.stage == "target" and re.fullmatch(r"[0-9]+(?:\s*[,， ]\s*[0-9]+)*", line):
             self.select_entries([int(n) for n in re.split(r"\s*[,， ]\s*", line)])
@@ -388,10 +423,10 @@ class TerminalMenu:
             self.stage = "confirm"
             self.action = {"name": "借机攻击" if value == "accept" else "放弃反应"}
             self.confirmation = {"operation": "reactions", "extra": {"choice": value}}
-            self.client.output(self.context())
+            self.client.present("context", self.context())
             preview = self.client.view["pending"].get("preview")
             if value == "accept" and preview:
-                self.client.output(render_preview("反应", preview, self.revision, self.client.view))
+                self.client.present("preview", render_preview("反应", preview, self.revision, self.client.view))
             else:
                 self.client.output("影响：" + ("对离开触及的敌人进行一次武器攻击；消耗反应 1。" if value == "accept" else "不进行攻击，不消耗反应；继续敌方移动。"))
             self.show()

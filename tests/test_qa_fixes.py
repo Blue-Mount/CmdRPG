@@ -161,7 +161,7 @@ def test_random_legal_commands_preserve_invariants(seed):
             entry = rng.choice(actions)
             command = deepcopy(entry["command"])
             try:
-                if entry["target_mode"] in ("enemy", "party", "multi", "move"):
+                if entry["target_mode"] in ("enemy", "party", "multi", "move", "allocation", "ground"):
                     entries = [option for option in engine.options(state, command)["entries"] if option["available"]]
                     if not entries:
                         continue

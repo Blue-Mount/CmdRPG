@@ -230,7 +230,15 @@ def _validate(pack):
 
     for ident, enemy in pack["enemies"].items():
         loc = f"enemies.{ident}"
-        _object(enemy, loc, {"name", "hp", "ac", "stats", "speed", "range", "dice", "damage_type", "role"}, {"attack_stat", "save_proficiencies"})
+        _object(enemy, loc, {"name", "hp", "ac", "stats", "speed", "range", "dice", "damage_type", "role"}, {"attack_stat", "save_proficiencies", "resistances", "spell"})
+        if "resistances" in enemy and (not isinstance(enemy['resistances'], list) or any(not isinstance(x, str) or x not in DAMAGE_TYPES for x in enemy['resistances']) or len(set(enemy['resistances'])) != len(enemy['resistances'])):
+            _fail(loc, "invalid resistance types")
+        if "spell" in enemy:
+            _object(enemy['spell'], loc + '.spell', {'save', 'dc'})
+            _enum(enemy['spell']['save'], loc + '.spell.save', STATS)
+            _number(enemy['spell']['dc'], loc + '.spell.dc', 8, 20, integer=True)
+            if enemy['role'] != 'ranged':
+                _fail(loc, 'spell requires ranged role')
         _text(enemy["name"], f"{loc}.name")
         _number(enemy["hp"], f"{loc}.hp", 1, 1000, integer=True)
         _number(enemy["ac"], f"{loc}.ac", 1, 30, integer=True)

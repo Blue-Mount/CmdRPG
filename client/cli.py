@@ -12,7 +12,7 @@ import uuid
 
 from .parser import ParseError, parse_line
 from .render import (inspect, render_actions, render_events, render_map,
-                     render_party, render_preview, render_view, render_event_summary)
+                     render_party, render_preview, render_view, render_result)
 from .transport import LocalTransport, TransportError
 from .menu import TerminalMenu
 
@@ -52,6 +52,7 @@ preview buy P1 greatsword 购买药水/装备到指定队员背包
 retry                    战败后回到战前状态
 resend                   用原操作 ID 恢复意外退出时的存档回执
 log 10                   最近十条事件及计算信息
+rules / result / details  所选技能规则 / 本次完整结算 / 本次全部计算
 help / quit              帮助 / 离开；已提交动作自动保存
 完整行动也可直接输入，例如 attack P1 E1；合法性由核心验证。
 支持 readline 的终端可按 Tab 补全快捷命令。"""
@@ -80,11 +81,13 @@ def write_json(path, value):
 
 class Client:
     def __init__(self, transport, run_id=None, view=None, *, output=print,
-                 journal_path=None, scope=None, on_run=None):
+                 journal_path=None, scope=None, on_run=None, presenter=None):
         self.transport = transport
         self.run_id = run_id
         self.view = view or {}
         self.output = output
+        self.presenter = presenter
+        self.last_result = None
         self.journal_path = Path(journal_path) if journal_path else None
         self.scope = scope or {}
         self.on_run = on_run
@@ -95,6 +98,12 @@ class Client:
         self.ui = TerminalMenu(self)
         self.preview_result = None
         self._default_menu()
+
+    def present(self, kind, text):
+        if self.presenter:
+            self.presenter(kind, text)
+        else:
+            self.output(text)
 
     def _default_menu(self):
         self.ui.build()
@@ -164,6 +173,8 @@ class Client:
         self.run_id = receipt_run
         if self.on_run:
             self.on_run(self.run_id)
+        before = (self.view if request["operation"] != "create" and
+                  request["payload"].get("expected_revision") == self.view.get("revision") else {})
         self.view = receipt["view"]
         self.previews.clear()
         self._clear_pending()
@@ -171,21 +182,22 @@ class Client:
         # Show its original result, then refresh the latest filtered view.
         if receipt.get("events"):
             events = receipt["events"]
-            self.output(render_event_summary(events))
+            self.last_result = {"events": deepcopy(events), "before": before, "after": deepcopy(self.view)}
+            self.present("result", render_result(events, before, self.view))
         try:
             self.refresh(display=False)
         except TransportError:
             self.output("写入已确认并保存；局势刷新暂不可用，resume 可重新读取。")
         self.ui.after_write(request)
         if request["operation"] in ("create", "retry") or self.ui.stage == "home":
-            self.output(render_view(self.view, self.ui.selected))
+            self.present("view", render_view(self.view, self.ui.selected))
         elif self.ui.stage == "settlement":
-            self.output("全队资源已保存；从战后菜单选择接下来的操作。")
+            self.present("status", "全队资源已保存；从战后菜单选择接下来的操作。")
         elif (request["payload"].get("command", {}).get("type") in ("move", "end")
               or request["operation"] == "reactions"):
-            self.output("第 %s 回合 · 可操作：%s；输入 map 展开地图。" % (self.view.get("round", "?"), "、".join(self.view.get("active", [])) or "无"))
+            self.present("status", "第 %s 回合 · 可操作：%s；输入 map 展开地图。" % (self.view.get("round", "?"), "、".join(self.view.get("active", [])) or "无"))
         else:
-            self.output("第 %s 回合 · 可操作：%s" % (self.view.get("round", "?"), "、".join(self.view.get("active", [])) or "无"))
+            self.present("status", "第 %s 回合 · 可操作：%s" % (self.view.get("round", "?"), "、".join(self.view.get("active", [])) or "无"))
         self._default_menu()
         self.show_menu()
         return True
@@ -222,7 +234,7 @@ class Client:
         self.view = new_view
         self._default_menu()
         if display:
-            self.output(render_view(self.view, self.ui.selected))
+            self.present("view", render_view(self.view, self.ui.selected))
             self.show_menu()
         return new_view
 
@@ -250,8 +262,8 @@ class Client:
             self.ui.stage = "confirm"
             self.ui.confirmation = {"operation": "commands", "number": number}
             self.ui.revision = revision
-            self.output(self.ui.context())
-            self.output(render_preview(number, result, revision, self.view))
+            self.present("context", self.ui.context())
+            self.present("preview", render_preview(number, result, revision, self.view))
         self._default_menu()
         return number
 
@@ -377,6 +389,8 @@ def argument_parser():
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric", help="恰好四个职业，允许重复")
     parser.add_argument("--seed", type=int, help="新周目随机种子")
     parser.add_argument("--campaign", action="store_true", help="新开五站远征战役（保留旧周目）")
+    parser.add_argument("--ui", choices=("auto", "cards", "plain"), default="auto",
+                        help="固定区域决策卡或兼容文字入口；auto 在支持的交互终端启用卡片")
     parser.add_argument("--db", help="本地 SQLite 路径（默认 CMDRPG_DB 或 data/game.sqlite3）")
     parser.add_argument("--config", default=os.environ.get("CMDRPG_CLIENT_CONFIG", "data/client.json"), help="本机存档与周目记录路径")
     return parser
@@ -402,6 +416,7 @@ def main(argv=None, *, input_reader=input, output=print):
     journal_path = config_path.with_name(config_path.stem + ".pending.json")
     transport = None
     locks = ExitStack()
+    screen = None
     try:
         saved = read_json(config_path) or {}
         previous = saved.get("last", {})
@@ -423,7 +438,18 @@ def main(argv=None, *, input_reader=input, output=print):
             # Save only the local database path and selected run.
             write_json(config_path, {"last": dict(scope, run_id=current_id)})
 
-        client = Client(transport, run_id=run_id, output=output, journal_path=journal_path, scope=scope, on_run=save_run)
+        if args.ui != "plain" and output is print and input_reader is input and not args.list_runs:
+            from .cards import DecisionScreen
+            candidate = DecisionScreen()
+            if candidate.supported():
+                screen = candidate
+            elif args.ui == "cards":
+                output("决策卡需要支持 VT 的交互终端（至少110列×36行）；已使用兼容文字界面。")
+        client = Client(transport, run_id=run_id, output=screen.message if screen else output,
+                        presenter=screen.present if screen else None,
+                        journal_path=journal_path, scope=scope, on_run=save_run)
+        if screen:
+            screen.client = client
         client.load_pending()
         if client.pending:
             if args.run and client.pending.get("operation") == "create":
@@ -457,16 +483,49 @@ def main(argv=None, *, input_reader=input, output=print):
                     output("已取消建队。")
                     return 0
             client.create(args.name, templates, args.seed, campaign=args.campaign)
+        if screen:
+            try:
+                locks.enter_context(screen)
+            except OSError:
+                output("终端无法启用固定区域重绘，已使用兼容文字界面。")
+                client.output, client.presenter = output, None
+                screen = None
+                client.refresh()
         install_completion(client)
         while True:
+            if screen and not screen.draw():
+                screen.__exit__(None, None, None)
+                screen = None
+                client.output, client.presenter = output, None
+                output("终端尺寸不足110列×36行，已切回文字界面。")
+                client.refresh()
             try:
-                line = input_reader(client.ui.context() + " > ")
+                line = input_reader("> " if screen else client.ui.context() + " > ")
             except (EOFError, KeyboardInterrupt):
+                if screen:
+                    screen.notices = []
                 client.handle("quit")
+                if screen:
+                    screen.__exit__(None, None, None)
+                    output(screen.feedback)
                 return 0
+            if screen:
+                if line.strip().lower() == "plain":
+                    screen.__exit__(None, None, None)
+                    screen = None
+                    client.output, client.presenter = output, None
+                    client.refresh()
+                    continue
+                if screen.navigate(line):
+                    continue
             if not client.handle(line):
+                if screen:
+                    screen.__exit__(None, None, None)
+                    output(screen.feedback)
                 return 0
     except (TransportError, ValueError, OSError, sqlite3.Error) as exc:
+        if screen:
+            screen.__exit__(None, None, None)
         output("启动失败：%s" % getattr(exc, "message", str(exc)))
         return 1
     finally:

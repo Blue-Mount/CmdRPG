@@ -11,8 +11,16 @@ from saves.storage import Repository
 
 
 class PlaygroundEngine(Engine):
-    def __init__(self, levels, loadouts=None):
+    def __init__(self, levels, loadouts=None, battle_slice=False):
         super().__init__()
+        self.battle_slice = battle_slice
+        if battle_slice:
+            from core.growth import DATA
+            self.content.update(self._campaign_pack('forge'))
+            self.content['version'] = '0.3.0-m3'
+            self.content['rules_version'] = '0.3.0-provisional'
+            self.content['abilities'].update(DATA['abilities'])
+            self.content['items'].update(DATA['items'])
         self.levels, self.loadouts = levels, loadouts
 
     def new_run(self, name="M3开发试玩", templates=None, seed=None, *, campaign=False):
@@ -22,7 +30,9 @@ class PlaygroundEngine(Engine):
             name, templates, seed, levels=self.levels, loadouts=self.loadouts
         )
         state["development"] = True
+        if self.battle_slice: state['battle_slice'] = True
         state["battle_snapshot"]["development"] = True
+        if self.battle_slice: state['battle_snapshot']['battle_slice'] = True
         return state
 
 
@@ -36,6 +46,8 @@ def main(argv=None):
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument('--campaign', action='store_true', help='五站完整战役雏形，从1级开始')
+    parser.add_argument('--battle-slice', action='store_true', help='在熔炉地图反复体验四职业爆发、控制与装备；默认5级')
+    parser.add_argument('--ui', choices=('auto', 'cards', 'plain'), default='auto', help='终端界面模式')
     parser.add_argument(
         "--equip",
         action="append",
@@ -49,7 +61,7 @@ def main(argv=None):
         help="P3:magic_missile,fireball；牧师须保留领域恒定法术",
     )
     args = parser.parse_args(argv)
-    if args.campaign and (args.levels or args.equip or args.prepare):
+    if args.campaign and (args.levels or args.equip or args.prepare or args.battle_slice):
         parser.error('战役从1级起步，不能指定开发局等级、装备或法术准备。')
     try:
         levels = (
@@ -77,7 +89,7 @@ def main(argv=None):
                     spells=spells.split(",") if spells else [],
                 )
             )
-        engine = Engine() if args.campaign else PlaygroundEngine(levels, loadouts)
+        engine = Engine() if args.campaign else PlaygroundEngine(levels, loadouts, args.battle_slice)
         # Validate before allocating any on-disk save.
         engine.new_run(templates=args.classes.split(","), seed=args.seed, campaign=args.campaign)
     except Exception as exc:
@@ -95,7 +107,7 @@ def main(argv=None):
     )
     from client.cli import main as client_main
 
-    common = ["--config", str(config), "--run", run_id]
+    common = ["--config", str(config), "--run", run_id, "--ui", args.ui]
     store.close()
     return client_main(["--db", str(database), *common])
 

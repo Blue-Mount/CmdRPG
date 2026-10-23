@@ -10,7 +10,7 @@ PHASES = {"combat": "战斗", "player": "玩家行动", "reaction": "等待反�
           "complete": "已结束", "finished": "已结束", "battle": "战斗", "defeated": "战败"}
 CONDITIONS = {"downed": "倒地", "dead": "死亡", "stable": "伤势稳定",
               "dodge": "闪避", "dodging": "闪避", "bless": "祝福",
-              "disengage": "撤离", "disengaged": "撤离", "mage_armor": "法师护甲"}
+              "disengage": "撤离", "disengaged": "撤离", "mage_armor": "法师护甲", "stunned": "震慑"}
 COSTS = {"action": "动作", "bonus": "附赠动作", "reaction": "反应", "movement": "移动",
          "second_wind": "回气次数", "potions": "治疗药水", "short_rests": "短休次数", "ki": "气点", "action_surge":"动作如潮", "superiority":"优越骰", "channel":"引导神力", "arcane_recovery":"奥术回想"}
 COSTS['gold'] = '金币'
@@ -102,6 +102,12 @@ def actor_line(actor, detailed=False):
             result += "（剩余 %s 回合，目标 %s）" % (concentration.get("remaining", "?"), "/".join(concentration.get("targets", [])))
     if detailed:
         result += "\n  等级 %s  速度 %s米" % (actor.get("level", "?"), actor.get("speed", "?"))
+        if actor.get('resistances'):
+            result += '\n  抗性：' + '、'.join({'fire':'火焰'}.get(k,k) for k in actor['resistances'])
+        if actor.get('spell'):
+            result += '\n  法术：熔火箭，射程%s米，%s豁免DC%s，成功伤害减半。' % (actor['range'], actor['spell']['save'], actor['spell']['dc'])
+        if actor.get('save_proficiencies'):
+            result += '\n  豁免熟练：' + '、'.join(actor['save_proficiencies'])
         if actor.get("stats"):
             result += "\n  属性 " + " ".join("%s=%s" % pair for pair in actor["stats"].items())
     return result
@@ -144,6 +150,65 @@ def render_events(events, detailed=False):
         lines.append("[%s] %s" % (event.get("seq", "?"), event.get("text", "")))
         if detailed and event.get("details"):
             lines.append("  计算：" + json.dumps(event["details"], ensure_ascii=False, sort_keys=True))
+    return "\n".join(lines)
+
+
+def render_result(events, before=None, after=None, detailed=False):
+    """Keep every acknowledged event in order, then show actual resource changes."""
+    lines = ["真实结算（已执行并保存）", render_events(events, detailed=detailed)]
+    old_party = {a["id"]: a for a in (before or {}).get("party", [])}
+    for actor in (after or {}).get("party", []):
+        old = old_party.get(actor["id"])
+        if not old:
+            continue
+        changes = []
+        for field, prefix in (("budgets", ""), ("resources", ""), ("slots", "slot_")):
+            previous, current = old.get(field, {}), actor.get(field, {})
+            for key in dict.fromkeys([*previous, *current]):
+                if previous.get(key, 0) != current.get(key, 0):
+                    changes.append("%s %s → %s%s" % (
+                        _cost_name(prefix + key), _number(previous.get(key, 0)),
+                        _number(current.get(key, 0)), "米" if key == "movement" else ""))
+        if changes:
+            lines.append("%s 实际资源变化：%s" % (_actor_name(after, actor["id"]), "；".join(changes)))
+    lines.append("details 展开本次全部计算；log 10 查看历史。")
+    return "\n".join(lines)
+
+
+def render_actor_card(actor):
+    """Actor-owned facts and static action names; never a tactical ranking."""
+    budgets = actor.get("budgets", {})
+    lines = ["%s %s  生命 %s/%s  [%s]" % (
+        actor["id"], actor.get("name", ""), actor.get("hp", "?"), actor.get("max_hp", "?"),
+        actor.get("status", "") or _conditions(actor)),
+        "动作 %s · 附赠 %s · 反应 %s · 移动 %s米" % (
+            budgets.get("action", 0), budgets.get("bonus", 0), budgets.get("reaction", 0),
+            _number(budgets.get("movement", 0)))]
+    common = [entry.get("name", "") for entry in actor.get("menu_actions", [])
+              if entry.get("command", {}).get("type") in ("move", "attack", "end")
+              or (entry.get("command", {}).get("ability") and not any(
+                  str(key).startswith("slot_") for key in entry.get("cost", {})))]
+    if common:
+        lines.append("常用：" + " / ".join(common))
+    return "\n".join(lines)
+
+
+def render_action_card(view, actor_id, entry, detailed=False):
+    """Explain the selected action before a target is chosen."""
+    cost = "按路径消耗移动" if entry.get("target_mode") == "move" else render_cost(entry.get("cost", {}))
+    lines = ["技能：" + entry.get("name", "行动"),
+             "效果：" + entry.get("description", "以正式预览为准。"), "成本：" + cost]
+    if entry.get("remaining"):
+        lines.append("剩余：" + render_cost(entry["remaining"]))
+    if detailed:
+        actor = _actor(view, actor_id) or {}
+        ability = next((a for a in actor.get("abilities", [])
+                        if a.get("id") == entry.get("command", {}).get("ability")), {})
+        lines.append("规则：" + ability.get("description", entry.get("description", "以正式预览为准。")))
+        if "range" in ability:
+            lines.append("射程：%s米" % _number(ability["range"]))
+    else:
+        lines.append("rules 展开所选技能规则；选择后由正式 preview 校验。")
     return "\n".join(lines)
 
 
@@ -218,6 +283,32 @@ def render_preview(number, preview, revision, view=None):
         lines.append("命中率：%.1f%%" % (100 * preview["hit_probability"]))
     if "failure_probability" in preview:
         lines.append("目标豁免失败概率：%.1f%%（DC %s）" % (100 * preview["failure_probability"], preview.get("save_dc", "?")))
+    if "attack_count" in preview:
+        lines.append("连续攻击：至多 %s 段；每段独立结算，已击败目标的剩余段跳过。" % preview["attack_count"])
+    if preview.get('centre'):
+        lines.append('爆心：%s；半径 %s 米；伤害 %s。' % (preview['centre'], preview['radius'], preview['damage_dice']))
+    for allocation in preview.get('allocations', []):
+        lines.append('第%s段 → %s：命中 %.1f%%；伤害 %s%+d%s。' % (allocation['index'], _actor_name(view, allocation['target']), 100 * allocation['hit_probability'], allocation['damage_dice'], allocation.get('damage_bonus', 0), '；目标抗性使伤害减半' if allocation.get('resistant') else ''))
+    if preview.get('conditional_cost'):
+        lines.append('条件消耗：命中时气 -1，未命中不消耗气。')
+    comparison = preview.get('equipment_comparison')
+    if comparison:
+        lines.append('装备对比（穿戴后；命中率需在战斗中选择具体目标预览）：')
+        labels = {'damage_dice':'武器伤害骰', 'damage_bonus':'武器伤害加值', 'attack_bonus':'武器命中加值',
+                  'ac':'AC', 'speed':'移动米', 'spell_attack':'法术攻击', 'spell_dc':'法术DC',
+                  'healing_bonus':'装备法术治疗加值', 'weapon_proficient':'武器熟练', 'two_handed':'双手占位',
+                  'martial_arts':'无甲武艺', 'casting_allowed':'允许施法', 'attack_disadvantage':'护甲不熟练攻击劣势', 'resources':'职业资源上限'}
+        for field, label in labels.items():
+            before, after = comparison['before'][field], comparison['after'][field]
+            if before is not None or after is not None:
+                display = lambda value: ('是' if value else '否') if isinstance(value, bool) else render_cost(value) if isinstance(value, dict) else value
+                lines.append('  %s：%s → %s' % (label, display(before), display(after)))
+        lines.append('特效：' + comparison['effect'])
+    for save in preview.get("saves", []):
+        if "failure_probability" in save:
+            lines.append("%s 豁免失败概率：%.1f%%（DC %s）" % (
+                _actor_name(view, save.get("target")), 100 * save["failure_probability"], save.get("dc", "?")))
+            if save.get('resistant'): lines.append('  目标火焰抗性：豁免结算后的伤害再减半。')
     warnings = preview.get("warnings", [])
     if warnings:
         lines.extend("危险/提示：%s" % _named_text(warning, view) for warning in warnings)
@@ -264,7 +355,7 @@ def _fallback_actions(view, actor):
     return entries
 
 
-def render_menu_actions(view, actor_id, compact=False):
+def render_menu_actions(view, actor_id, compact=False, cards=False):
     actor = next((actor for actor in view.get("party", []) if actor.get("id") == actor_id), None)
     if actor is None:
         raise ValueError("没有队员 %s。" % actor_id)
@@ -272,7 +363,14 @@ def render_menu_actions(view, actor_id, compact=False):
     entries = actor.get("menu_actions")
     if entries is None:
         entries = _fallback_actions(view, actor)
+    if cards:
+        lines = ["%s %s | 选择行动或技能" % (actor_id, actor.get("name", "")),
+                 render_actor_card(actor)]
     for number, entry in enumerate(entries, 1):
+        if cards:
+            lines.append("%s. %s%s" % (number, entry.get("name", "行动"),
+                         "" if entry.get("available") else " · 不可用：" + entry.get("reason", "条件不满足")))
+            continue
         cost = render_cost(entry.get("cost", {}))
         if entry.get("target_mode") == "move" or (entry.get("name") == "移动" and not entry.get("cost")):
             cost = "按路径消耗移动"

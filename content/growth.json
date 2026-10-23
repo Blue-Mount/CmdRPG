@@ -416,7 +416,8 @@
         "abilities": [
           "unarmed_strike",
           "flurry",
-          "patient_defence"
+          "patient_defence",
+          "stunning_strike"
         ],
         "extra_attack": 1,
         "spell_stat": null,
@@ -976,7 +977,7 @@
       "cost": "action",
       "level": 2,
       "range": 18,
-      "description": "逐条作法术攻击，三条射线各造成 2d6 火焰伤害；升环每环增加一条。"
+      "description": "三条射线可分别分配可见敌人（允许重复），每条独立命中造成2d6火焰；升环每环加一条。"
     },
     "fireball": {
       "name": "火球术",
@@ -984,7 +985,7 @@
       "cost": "action",
       "level": 3,
       "range": 18,
-      "description": "以可见敌人为中心，6米内生物受8d6火焰伤害，敏捷豁免减半；塑能保护使友军免伤。"
+      "description": "选择18米内可见地面落点或敌人中心；6米内8d6火焰，敏捷豁免减半；塑能保护友军。"
     },
     "aid": {
       "name": "援助术",
@@ -1010,6 +1011,15 @@
       "range": 9,
       "description": "9米内可见队友恢复三倍牧师等级生命。",
       "resource": "channel"
+    },
+    "stunning_strike": {
+      "name": "震慑拳",
+      "effect": "stunning_strike",
+      "cost": "action",
+      "level": 0,
+      "range": 1.5,
+      "resource": "ki",
+      "description": "一次近战武器攻击，可接续额外攻击；仅命中时消耗1气，目标体质豁免失败则震慑至施术者下次回合结束。"
     }
   },
   "items": {
@@ -1057,6 +1067,104 @@
       "dice": "1d6",
       "damage_type": "bludgeoning",
       "category": "simple"
+    },
+    "longsword_plus1": {
+      "name": "精钢长剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "1d8",
+      "damage_type": "slashing",
+      "category": "martial",
+      "base_weapon": "longsword",
+      "description": "每次使用此武器攻击（含借机）命中与伤害+1，无次数限制。",
+      "attack_bonus": 1,
+      "damage_bonus": 1
+    },
+    "greatsword_plus1": {
+      "name": "破阵巨剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "2d6",
+      "damage_type": "slashing",
+      "category": "martial",
+      "base_weapon": "greatsword",
+      "description": "双手；每次使用此武器攻击（含借机）命中与伤害+1，无次数限制。",
+      "attack_bonus": 1,
+      "damage_bonus": 1,
+      "two_handed": true
+    },
+    "wind_staff": {
+      "name": "踏风杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "category": "simple",
+      "base_weapon": "staff",
+      "description": "武僧无甲无盾时移动速度+3米；持续生效，无次数限制。",
+      "speed_bonus": 3
+    },
+    "striking_staff": {
+      "name": "凝劲杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "category": "simple",
+      "base_weapon": "staff",
+      "description": "每次使用此武器攻击（含借机）命中与伤害+1；不加成徒手、疾风连击。",
+      "attack_bonus": 1,
+      "damage_bonus": 1
+    },
+    "focus_staff": {
+      "name": "聚能法杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "category": "simple",
+      "base_weapon": "staff",
+      "description": "持有时法术攻击+1、法术豁免DC+1；不增加法术位或飞弹伤害，无次数限制。",
+      "spell_attack": 1,
+      "spell_dc": 1
+    },
+    "warding_staff": {
+      "name": "守御法杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "category": "simple",
+      "base_weapon": "staff",
+      "description": "持有时自身AC+1，与法师护甲叠加；不增加法术伤害，无次数限制。",
+      "ac_bonus": 1
+    },
+    "mercy_mace": {
+      "name": "仁心权杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "category": "simple",
+      "base_weapon": "mace",
+      "description": "自身施放治愈真言、疗伤术或群体治愈真言时，每个受疗目标治疗+2；药水、回气、援助和维持生命不加成，无次数限制。",
+      "healing_bonus": 2
+    },
+    "bastion_shield": {
+      "name": "堡垒盾",
+      "slot": "off_hand",
+      "kind": "shield",
+      "ac": 3,
+      "category": "shield",
+      "description": "持有时盾牌提供3AC（普通盾2）；需要盾牌熟练，不能与双手武器并用，无次数限制。"
+    },
+    "plate": {
+      "name": "板甲",
+      "slot": "armor",
+      "kind": "armor",
+      "ac": 18,
+      "category": "heavy",
+      "description": "基础AC18，不计敏捷；战士防御风格另+1；未熟练时攻击劣势且禁止施法。"
     }
   }
 }

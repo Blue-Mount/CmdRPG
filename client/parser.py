@@ -86,8 +86,14 @@ def parse_action(tokens):
         if len(remaining) > 1:
             raise ParseError("多个目标用逗号连接；法术位放在最后，例如 P1,P2,P3 slot=1。")
         if remaining:
+            if command['ability'] == 'fireball' and len(remaining) == 1 and remaining[0].startswith('at='):
+                command['destination'] = _target(remaining[0][3:], position=True)
+                return command
             targets = remaining[0].split(",")
             parsed = [_target(target, position=True) for target in targets]
+            if command["ability"] == "fireball" and len(parsed) == 1 and not re.fullmatch(r"[PE][1-9][0-9]*", parsed[0]):
+                command["destination"] = parsed[0]
+                return command
             multiple = len(parsed) > 1 or command["ability"] == "bless"
             command["targets" if multiple else "target"] = parsed if multiple else parsed[0]
         elif command["ability"] not in ("aid","mass_healing_word","preserve_life"):

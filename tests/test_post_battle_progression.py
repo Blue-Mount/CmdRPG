@@ -39,7 +39,9 @@ def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
             actor, old = state['actors'][aid], before['actors'][aid]
             assert actor['level'] == level
             assert actor['max_hp'] - actor['hp'] == 3
-            assert actor['inventory'] == old['inventory']
+            reward = engine.campaign_content['nodes'][node].get('equipment_reward', {}).get(actor['template'])
+            expected_inventory = old['inventory'] + ([reward] if reward and reward not in old['inventory'] else [])
+            assert actor['inventory'] == expected_inventory
             assert actor['equipment'] == old['equipment']
             assert actor['resources']['potions'] == 1
             for current, maximum in [('slots', 'max_slots'), ('resources', 'max_resources')]:

@@ -32,7 +32,7 @@
     "second_wind": {"name": "回气", "effect": "second_wind", "cost": "bonus", "range": 0, "level": 0, "description": "恢复自身1d10+战士等级生命；消耗一次回气。短休恢复。"},
     "unarmed_strike": {"name": "武艺：附赠徒手打击", "effect": "unarmed_strike", "cost": "bonus", "range": 1.5, "level": 0, "description": "本轮已用攻击动作后，可附赠进行一次徒手攻击；1d4+敏捷钝击。1级无气点。"},
     "fire_bolt": {"name": "火焰箭", "effect": "fire_bolt", "cost": "action", "range": 18, "level": 0, "description": "对一个可见敌人作智力法术攻击，命中造成1d10火焰伤害。"},
-    "magic_missile": {"name": "魔法飞弹", "effect": "magic_missile", "cost": "action", "range": 18, "level": 1, "description": "三枚飞弹自动命中，每枚1d4+1力场伤害。切片限定全部飞弹指向同一敌人；不支持拆分目标。"},
+    "magic_missile": {"name": "魔法飞弹", "effect": "magic_missile", "cost": "action", "range": 18, "level": 1, "description": "三枚飞弹自动命中，每枚1d4+1力场伤害。可逐枚分配可见敌人（允许重复）；升环每环增加一枚。"},
     "mage_armor": {"name": "法师护甲", "effect": "mage_armor", "cost": "action", "range": 1.5, "level": 1, "description": "切片合法目标为无甲法师或武僧；AC取原防御与13+敏捷修正中较高值，持续至本场结束。此合并公式暂待BG3实测。"},
     "sacred_flame": {"name": "圣火术", "effect": "sacred_flame", "cost": "action", "range": 18, "level": 0, "description": "一个可见敌人作敏捷豁免（DC=8+熟练+感知）；失败承受1d8光耀伤害，成功无伤害。"},
     "healing_word": {"name": "治愈真言", "effect": "healing_word", "cost": "bonus", "range": 18, "level": 1, "description": "恢复一个可见队友1d4+感知生命，生命领域额外加2+消耗法术位环级。已死亡者无效。"},

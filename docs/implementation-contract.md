@@ -102,3 +102,14 @@ party投影增加 `equipment`, `equipment_names`, `inventory_items`, `proficienc
 SQLite表结构和JSON外壳仍为1；M3新局标记内容 `0.3.0-m3`、规则 `0.3.0-provisional`，角色 `growth_version=1`。旧的精确组合 `0.1.0-slice/0.1.0-provisional/1` 由显式兼容分支读取，view/preview不迁移或发放资源；原HP/AC/法术/内嵌地图与战前快照保持原值，可继续战斗及待反应。旧角色只在安全阶段显式levelup时应用下一等级并建立装备/准备数据，同时将周目标记为M3内容版本；其他尚未升级的旧角色仍按原字段兼容。未知版本或未知growth_version拒绝。
 
 升级在副本中计算，由Repository在单事务提交，原回执仍可重放。升级不自动备份/覆盖原库；部署前应使用已有一致性备份工具。已显式升级的M3档不能回退给旧二进制，须恢复升级前备份。开发试玩一律独立临时数据库，不能通过改生产存档设定等级。
+
+
+## A/B增量接口（2026-10-23）
+
+- 飞弹/射线兼容旧`target`命令（全部段给同一目标），新增`targets`按段列表，允许重复，长度必须等于实际段数。预览`allocations`给每段`index/target/hit_probability/damage_dice/damage_bonus/resistant`；不同目标不合成单一命中率。目标中途被击败时其剩余段跳过，其他目标继续。
+- 火球二选一：`target`（可见敌人中心）或`destination`（地图内、射程和视线合法的非墙格）。预览`centre/radius/damage_dice/saves`只含可见受影响目标。空落点合法，实际爆炸结算隐藏目标，但事件与视图不泄露。
+- 新增`{"type":"ability","actor":"P2","ability":"stunning_strike","target":"E1"}`。正式`cost`只包含确定消耗，`conditional_cost={"ki_on_hit":1}`表示仅命中花气。可使用额外攻击余次。震慑记录于`effects.stunned`，按来源分别持久化到期回合，`conditions`对可见角色显示`stunned`。
+- `menu_actions.target_mode`增加`allocation/ground`，`options.max_targets`表示分配段数；原`enemy/party/multi/move/none`兼容。`ground`同时保留可见敌人中心候选。
+- buy/equip预览新增`equipment_comparison={before,after,warnings,effect}`，只做脱离目标的装备数值和限制对比；具体命中/豁免仍走战斗preview。双手互斥的购买对比明确提示卸下假设，实际equip继续拒绝冲突。
+- 内容新增装备加值白名单、基础武器熟练引用、商店解锁阶段、按职业装备奖励；敌人可选`resistances`与`spell={save,dc}`。熔火箭使用原射程/伤害字段、豁免成功减半；不输出未来指令。
+- 不变更SQLite外壳或既有存档版本标记。已存角色、地图、资源与待反应保持；新能力随新建/显式成长快照获得；装备奖励仅首次结算时发放，已结算旧关不追发。既有已进入的熔炉敌人不会自动替换为新模板，新建战斗使用更新内容。切换代码版本前仍可用原备份工具。

@@ -23,12 +23,18 @@ def load_campaign(path=None):
     items = base['items'] | DATA['items']
     if not data.get('shop') or any(k not in items or type(v) is not int or v <= 0 for k, v in data['shop'].items()):
         raise ValueError('campaign: invalid shop')
+    data.setdefault('shop_unlocks', {key: 1 for key in data['shop']})
+    if not isinstance(data['shop_unlocks'], dict) or set(data['shop_unlocks']) != set(data['shop']) or any(type(v) is not int or not 1 <= v <= 5 for v in data['shop_unlocks'].values()):
+        raise ValueError('campaign: invalid shop unlocks')
     nodes = data['nodes']
     for key, node in nodes.items():
         if type(node.get('stage')) is not int or not 1 <= node['stage'] <= 5:
             raise ValueError('campaign: invalid stage')
         if type(node.get('gold')) is not int or node['gold'] < 0 or not node.get('name'):
             raise ValueError('campaign: invalid reward/name')
+        if 'equipment_reward' in node and (not isinstance(node['equipment_reward'], dict) or set(node['equipment_reward']) != set(DATA['classes']) or
+                any(not isinstance(v, str) or v not in items or items[v]['kind'] == 'potion' for v in node['equipment_reward'].values())):
+            raise ValueError('campaign: invalid equipment reward')
         if not isinstance(node.get('next'), list) or len(set(node['next'])) != len(node['next']):
             raise ValueError('campaign: duplicate or invalid route')
         if any(n not in nodes or nodes[n]['stage'] != node['stage'] + 1 for n in node['next']):
@@ -52,6 +58,11 @@ def load_campaign(path=None):
 
 
 class CampaignMixin:
+    def _shop_stock(self, state):
+        stage = self.campaign_content['nodes'][state['campaign']['node']]['stage']
+        return {k: v for k, v in self.campaign_content['shop'].items()
+                if self.campaign_content['shop_unlocks'][k] <= stage}
+
     def _campaign_pack(self, node):
         pack = load_content()
         entry = self.campaign_content['nodes'][node]
@@ -72,8 +83,9 @@ class CampaignMixin:
         progress.update(name=self.campaign_content['name'], encounter=node['name'], stage=node['stage'], total=5,
                         routes=[{'id': key, 'name': self.campaign_content['nodes'][key]['name']}
                                 for key in node['next']] if state['phase'] == 'victory' and not progress['completed'] else [],
-                        shop=[dict(id=k, name=self.content['items'][k]['name'], price=v)
-                              for k, v in self.campaign_content['shop'].items()])
+                        shop=[dict(id=k, name=self.content['items'][k]['name'], price=v,
+                                   description=self.content['items'][k].get('description', ''))
+                              for k, v in self._shop_stock(state).items()])
         return progress
 
     def _campaign_reward(self, state):
@@ -89,6 +101,12 @@ class CampaignMixin:
             if actor['side'] == 'party':
                 snapshot(actor, progress['unlocked_level'], self.content['items'])
         self._emit(state, 'campaign_reward', f"{node['name']}胜利：金币 +{node['gold']}；全队成长至{progress['unlocked_level']}级。生命与资源消耗保留，营地可恢复。")
+        for actor in state['actors'].values():
+            if actor['side'] == 'party':
+                item = node.get('equipment_reward', {}).get(actor['template'])
+                if item and item not in actor['inventory']:
+                    actor['inventory'].append(item)
+                    self._emit(state, 'equipment_reward', f"{actor['id']} 获得战斗奖励：{self.content['items'][item]['name']}，已收入背包；可比较后穿戴。", actor=actor['id'], item=item)
         if not node['next']:
             progress['completed'] = True
             self._emit(state, 'campaign_complete', '烬王倒下，裂隙关闭。五站远征通关！可以保留结局或新开战役。')
@@ -98,8 +116,10 @@ class CampaignMixin:
             return None
         progress = state['campaign']
         node = self.campaign_content['nodes'][progress['node']]
+        equipment = '、'.join(self.content['items'][v]['name'] for v in node.get('equipment_reward', {}).values())
         return dict(completed=progress['completed'], next_encounter=list(node['next']), loot_available=False,
-                    loot_description=f"本场奖励{node['gold']}金币，已自动收入队伍钱袋；无需搜刮尸体。全队等级{progress['unlocked_level']}。")
+                    loot_description=f"本场奖励{node['gold']}金币，已自动收入队伍钱袋；无需搜刮尸体。全队等级{progress['unlocked_level']}。" +
+                        ('职业装备奖励：' + equipment + '（已拥有的不重复发放）。' if equipment else ''))
 
     def _campaign_preview(self, state, command):
         from .engine import GameError
@@ -132,8 +152,8 @@ class CampaignMixin:
             item = command['item']
             if not isinstance(actor, str) or actor not in state['actors'] or state['actors'][actor]['side'] != 'party':
                 fail('请选择四名队员之一。')
-            if not isinstance(item, str) or item not in self.campaign_content['shop']:
-                fail('商店没有此物品。')
+            if not isinstance(item, str) or item not in self._shop_stock(state):
+                fail('当前阶段商店没有此物品。')
             if item != 'healing_potion' and item in state['actors'][actor]['inventory']:
                 fail('该队员已拥有此装备。')
             cost = {'gold': self.campaign_content['shop'][item]}
@@ -141,11 +161,16 @@ class CampaignMixin:
             if item == 'healing_potion':
                 description = state['actors'][actor]['name'] + '购买治疗药水一瓶，立即增加其可用药水数量。'
             if progress['node'] not in progress['camped'] and not progress['completed'] and progress['gold'] - cost['gold'] < 20:
-                fail('本次购买会用掉营地所需的最后20金币，请先休整或选择更便宜的物品。')
+                warnings.append('购买后将不足20金币营地休整；可自行选择留钱、短休或继续战斗。')
         if cost.get('gold', 0) > progress['gold']:
-            fail('金币不足；请保留20金币用于营地休整。')
-        return dict(command=deepcopy(command), revision=state['revision'], cost=cost, description=description,
-                    warnings=warnings, targets=[])
+            fail('金币不足。')
+        result = dict(command=deepcopy(command), revision=state['revision'], cost=cost, description=description,
+                      warnings=warnings, targets=[])
+        if kind == 'buy' and item != 'healing_potion':
+            from .equipment import compare
+            result['equipment_comparison'] = compare(state['actors'][actor], item, self.content['items'][item]['slot'], self.content['items'])
+            warnings.extend(result['equipment_comparison']['warnings'])
+        return result
 
     def _clear_battle_effects(self, actor):
         actor['max_hp'] -= actor.get('effects', {}).get('aid', {}).get('amount', 0)

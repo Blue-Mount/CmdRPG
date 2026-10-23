@@ -516,6 +516,12 @@
             "position": "L6"
           }
         ]
+      },
+      "equipment_reward": {
+        "fighter": "longsword_plus1",
+        "monk": "wind_staff",
+        "wizard": "warding_staff",
+        "cleric": "mercy_mace"
       }
     },
     "forge": {
@@ -568,7 +574,7 @@
       },
       "prototypes": {
         "foe_1": {
-          "name": "裂隙前哨守卫",
+          "name": "熔甲守卫",
           "hp": 40,
           "ac": 14,
           "stats": {
@@ -584,10 +590,13 @@
           "dice": "1d8",
           "damage_type": "slashing",
           "role": "melee",
-          "attack_stat": "str"
+          "attack_stat": "str",
+          "resistances": [
+            "fire"
+          ]
         },
         "foe_2": {
-          "name": "废营突袭者",
+          "name": "裂隙游击手",
           "hp": 30,
           "ac": 13,
           "stats": {
@@ -603,10 +612,14 @@
           "dice": "1d6",
           "damage_type": "piercing",
           "role": "melee",
-          "attack_stat": "str"
+          "attack_stat": "str",
+          "save_proficiencies": [
+            "dex",
+            "con"
+          ]
         },
         "foe_3": {
-          "name": "石阶瞭望手",
+          "name": "熔火术士",
           "hp": 28,
           "ac": 13,
           "stats": {
@@ -618,11 +631,19 @@
             "cha": 8
           },
           "speed": 9,
-          "range": 18,
-          "dice": "1d8",
-          "damage_type": "piercing",
+          "range": 12,
+          "dice": "2d6",
+          "damage_type": "fire",
           "role": "ranged",
-          "attack_stat": "dex"
+          "attack_stat": "dex",
+          "spell": {
+            "save": "dex",
+            "dc": 13
+          },
+          "save_proficiencies": [
+            "int",
+            "wis"
+          ]
         },
         "foe_4": {
           "name": "废营突袭者",
@@ -646,7 +667,7 @@
       },
       "encounter": {
         "name": "第四站 · 熔炉守军",
-        "description": "击败守军，夺回裂隙要塞。战后可休整、购物并选择前进路线。",
+        "description": "击败熔甲守卫、游击手与熔火术士。利用射程、抗性和豁免差异；敌方不公开未来行动。",
         "party_spawns": [
           "B5",
           "B6",
@@ -808,9 +829,27 @@
   "shop": {
     "healing_potion": 10,
     "greatsword": 35,
-    "leather": 20,
-    "scale_mail": 35,
-    "shield": 20,
-    "staff": 10
+    "longsword_plus1": 55,
+    "wind_staff": 45,
+    "striking_staff": 55,
+    "focus_staff": 60,
+    "warding_staff": 45,
+    "mercy_mace": 50,
+    "bastion_shield": 70,
+    "greatsword_plus1": 90,
+    "plate": 100
+  },
+  "shop_unlocks": {
+    "healing_potion": 1,
+    "greatsword": 1,
+    "longsword_plus1": 1,
+    "wind_staff": 1,
+    "striking_staff": 1,
+    "focus_staff": 1,
+    "warding_staff": 1,
+    "mercy_mace": 1,
+    "bastion_shield": 2,
+    "greatsword_plus1": 3,
+    "plate": 3
   }
 }
