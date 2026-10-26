@@ -183,3 +183,12 @@ python -m tools.dev_play --battle-slice --equip P2:main_hand:wind_staff --equip 
 ```
 
 胜利后11号重新演练会保留熔炉场景、等级、装备和准备法术，刷新生命与资源；可重新配置后再打。无金币奖励，不读取正常玩家存档。
+
+
+## 八级Boss试玩与成长记录（2026-10-26）
+
+`python -m tools.dev_play --boss-slice --ui cards` 直接开启四人8级Boss战，独立临时数据库；胜利后11号重新演练保留Boss场景、成长、准备和配装。`--level 7` 可改等级（1–8），原 `--battle-slice` 默认仍为5级熔炉。
+
+每次升级预览/结算显示新能力、被动、HP、属性、法术位和职业资源的变化。战后7–10号打开角色成长页可看最近升级，17号查看全队记录；随时输入 `growth` 看全队，`growth P1` 看单人完整已保存记录。卡片模式结果区可用 `]/[` 翻页。旧档未保存的历史不会补造。
+
+新装备位 `ring` / `feet` 对应戒指与鞋子，商店购买后进入7–10号穿戴；原 `--equip P1:ring:protection_ring --equip P1:feet:swift_boots` 也可用于独立开发试玩。护甲/盾牌熟练与武僧无甲限制仍有效，戒指和鞋子不算护甲。

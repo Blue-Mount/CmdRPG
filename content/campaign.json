@@ -129,7 +129,8 @@
             "position": "L5"
           }
         ]
-      }
+      },
+      "reward_level": 2
     },
     "road": {
       "name": "第二站 · 灰烬旧道",
@@ -261,7 +262,8 @@
             "position": "L5"
           }
         ]
-      }
+      },
+      "reward_level": 4
     },
     "ridge": {
       "name": "第二站 · 北侧山脊",
@@ -388,7 +390,8 @@
             "position": "L7"
           }
         ]
-      }
+      },
+      "reward_level": 4
     },
     "gate": {
       "name": "第三站 · 要塞双门",
@@ -518,11 +521,12 @@
         ]
       },
       "equipment_reward": {
-        "fighter": "longsword_plus1",
-        "monk": "wind_staff",
-        "wizard": "warding_staff",
-        "cleric": "mercy_mace"
-      }
+        "fighter": "gatewarden_blade",
+        "monk": "stormstride_staff",
+        "wizard": "runic_bulwark_staff",
+        "cleric": "dawnwatch_mace"
+      },
+      "reward_level": 6
     },
     "forge": {
       "name": "第四站 · 熔炉守军",
@@ -696,7 +700,8 @@
             "position": "L8"
           }
         ]
-      }
+      },
+      "reward_level": 8
     },
     "heart": {
       "name": "终站 · 裂隙之心",
@@ -741,26 +746,32 @@
       "prototypes": {
         "foe_1": {
           "name": "裂隙领主·烬王",
-          "hp": 110,
-          "ac": 15,
+          "hp": 180,
+          "ac": 16,
           "stats": {
-            "str": 14,
+            "str": 18,
             "dex": 12,
-            "con": 12,
+            "con": 16,
             "int": 8,
-            "wis": 10,
+            "wis": 14,
             "cha": 8
           },
           "speed": 9,
           "range": 1.5,
-          "dice": "2d6",
+          "dice": "2d8",
           "damage_type": "slashing",
           "role": "melee",
-          "attack_stat": "str"
+          "attack_stat": "str",
+          "boss": {
+            "threshold": 0.5,
+            "radius": 6,
+            "dice": "3d6",
+            "dc": 15
+          }
         },
         "foe_2": {
           "name": "裂隙前哨守卫",
-          "hp": 40,
+          "hp": 60,
           "ac": 14,
           "stats": {
             "str": 14,
@@ -779,7 +790,7 @@
         },
         "foe_3": {
           "name": "石阶瞭望手",
-          "hp": 30,
+          "hp": 45,
           "ac": 13,
           "stats": {
             "str": 10,
@@ -799,7 +810,7 @@
       },
       "encounter": {
         "name": "终站 · 裂隙之心",
-        "description": "击败守军，夺回裂隙要塞。烬王率领亲卫守住最后的裂隙。",
+        "description": "击败烬王及亲卫。烬王受伤后会显露裂隙形态；所有新规则在实际转阶段时公布。",
         "party_spawns": [
           "B5",
           "B6",
@@ -823,10 +834,18 @@
             "position": "L9"
           }
         ]
-      }
+      },
+      "reward_level": 8
     }
   },
   "shop": {
+    "reinforced_scale": 55,
+    "warding_shield": 60,
+    "protection_ring": 65,
+    "focus_ring": 55,
+    "healer_ring": 45,
+    "swift_boots": 50,
+    "resolve_boots": 50,
     "healing_potion": 10,
     "greatsword": 35,
     "longsword_plus1": 55,
@@ -840,6 +859,13 @@
     "plate": 100
   },
   "shop_unlocks": {
+    "reinforced_scale": 1,
+    "warding_shield": 2,
+    "protection_ring": 1,
+    "focus_ring": 1,
+    "healer_ring": 1,
+    "swift_boots": 1,
+    "resolve_boots": 2,
     "healing_potion": 1,
     "greatsword": 1,
     "longsword_plus1": 1,

@@ -4,6 +4,10 @@ from copy import deepcopy
 import json
 from pathlib import Path
 
+LEVEL_CAP = 8
+CONTENT_VERSION = '0.5.0-m5'
+RULES_VERSION = '0.5.0-provisional'
+EQUIPMENT_SLOTS = ("main_hand", "off_hand", "armor", "ring", "feet")
 
 def load_growth(path=None):
     from .content import _JSONObjectPairs, _duplicate_checked, _invalid_constant
@@ -36,6 +40,8 @@ def validate_growth(data):
         "mass_healing_word",
         "preserve_life",
         "stunning_strike",
+        "blight",
+        "death_ward",
     }
     if (
         data.get("version") != 1
@@ -73,14 +79,16 @@ def validate_growth(data):
             "mass_healing_word": ("bonus", 3, 18, None),
             "preserve_life": ("action", 0, 9, "channel"),
             "stunning_strike": ("action", 0, 1.5, "ki"),
+            "blight": ("action", 4, 9, None),
+            "death_ward": ("action", 4, 1.5, None),
         }
         if (b["cost"], b["level"], b["range"], b.get("resource")) != specs[key]:
             raise ValueError("growth: effect metadata mismatch")
-        _number(b.get("level"), "growth ability level", 0, 3, integer=True)
+        _number(b.get("level"), "growth ability level", 0, 4, integer=True)
         _number(b.get("range"), "growth ability range", 0, 18)
     for cid, levels in data["classes"].items():
-        if set(levels) != {str(n) for n in range(1, 6)}:
-            raise ValueError("growth: requires five snapshots")
+        if set(levels) != {str(n) for n in range(1, LEVEL_CAP + 1)}:
+            raise ValueError("growth: requires eight snapshots")
         for level, b in levels.items():
             _object(
                 b,
@@ -111,10 +119,13 @@ def validate_growth(data):
                 "martial_arts",
                 "sculpt_spells",
                 "disciple_of_life",
+                "evasion",
+                "blessed_healer",
+                "divine_strike",
             }:
                 raise ValueError("growth: unknown passive")
             items = base["items"] | data["items"]
-            if set(b["equipment"]) != {"main_hand", "off_hand", "armor"} or any(
+            if set(b["equipment"]) != set(EQUIPMENT_SLOTS) or any(
                 item is not None and (item not in items or items[item]["slot"] != slot)
                 for slot, item in b["equipment"].items()
             ):
@@ -134,7 +145,7 @@ def validate_growth(data):
             ):
                 raise ValueError("growth: unknown or duplicate ability")
             for slot, count in b["slots"].items():
-                if slot not in ("1", "2", "3") or int(slot) > (int(level) + 1) // 2:
+                if slot not in ("1", "2", "3", "4") or int(slot) > (int(level) + 1) // 2:
                     raise ValueError("growth: illegal slot")
                 _number(count, "growth slot", 1, 4, integer=True)
             for resource, count in b["resources"].items():
@@ -147,7 +158,7 @@ def validate_growth(data):
                     "arcane_recovery",
                 ):
                     raise ValueError("growth: unknown resource")
-                _number(count, "growth resource", 1, 6, integer=True)
+                _number(count, "growth resource", 1, 9, integer=True)
             if type(b["extra_attack"]) != int or b["extra_attack"] != int(
                 int(level) >= 5 and cid in ("fighter", "monk")
             ):
@@ -158,7 +169,7 @@ def validate_growth(data):
             ):
                 raise ValueError("growth: ability unlocked without slot")
     for key, b in data["items"].items():
-        BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus"}
+        BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus"}
         if set(b) - {"name", "slot", "kind", "dice", "damage_type", "category", "ac", "two_handed", "base_weapon", "description"} - BONUSES:
             raise ValueError("growth: unknown equipment effect")
         for field in BONUSES & b.keys():
@@ -166,16 +177,16 @@ def validate_growth(data):
         if "base_weapon" in b and (not isinstance(b['base_weapon'], str) or b["base_weapon"] not in (base["items"] | data["items"])):
             raise ValueError("growth: unknown base weapon")
         if (
-            b.get("kind") not in ("weapon", "armor", "shield")
+            b.get("kind") not in ("weapon", "armor", "shield", "accessory")
             or b.get("slot")
-            != {"weapon": "main_hand", "armor": "armor", "shield": "off_hand"}[
+            not in {"weapon": ("main_hand",), "armor": ("armor",), "shield": ("off_hand",), "accessory": ("ring", "feet")}[
                 b["kind"]
             ]
         ):
             raise ValueError("growth: invalid equipment slot")
         if b["kind"] == "weapon":
             _dice(b.get("dice"), "growth weapon")
-        else:
+        elif b["kind"] != "accessory":
             _number(b.get("ac"), "growth armor", 1, 20, integer=True)
         if b.get("category") not in (
             "simple",
@@ -184,13 +195,14 @@ def validate_growth(data):
             "medium",
             "heavy",
             "shield",
+            "accessory",
         ):
             raise ValueError("growth: invalid proficiency")
 
 
 DATA = load_growth()
 SELF = {"action_surge", "patient_defence", "mass_healing_word", "preserve_life", "aid"}
-FRIENDLY = {"rally"}
+FRIENDLY = {"rally", "death_ward"}
 PROF = {
     "fighter": {"simple", "martial", "light", "medium", "heavy", "shield"},
     "monk": {"simple"},
@@ -207,7 +219,32 @@ def proficiency(actor):
     return actor.get("proficiency", 2)
 
 
+def level_changes(template, level):
+    """Describe fixed snapshot gains; this also powers previews and saved history."""
+    before, after = (DATA['classes'][template][str(n)] for n in (level - 1, level))
+    labels = {'str':'力量', 'dex':'敏捷', 'con':'体质', 'int':'智力', 'wis':'感知', 'cha':'魅力',
+              'second_wind':'回气', 'action_surge':'动作如潮', 'superiority':'优越骰', 'ki':'气',
+              'channel':'引导神力', 'arcane_recovery':'奥术回想点数',
+              'evasion':'闪避', 'blessed_healer':'受祝福的医者', 'divine_strike':'神圣打击'}
+    changes = [f"基础生命上限 {before['hp']} → {after['hp']}"]
+    for key in ('proficiency', 'extra_attack', 'speed'):
+        if before[key] != after[key]:
+            changes.append({'proficiency':'熟练加值','extra_attack':'额外攻击次数','speed':'基础移动米'}[key] + f" {before[key]} → {after[key]}")
+    for field in ('stats', 'resources', 'slots'):
+        for key, value in after[field].items():
+            previous = before[field].get(key, 0)
+            if previous != value:
+                name = key + '环法术位上限' if field == 'slots' else labels.get(key, key) + ('上限' if field == 'resources' else '')
+                changes.append(f"{name} {previous} → {value}")
+    for ability in after['abilities']:
+        if ability not in before['abilities']:
+            changes.append('新能力：' + DATA['abilities'].get(ability, {}).get('name', ability))
+    changes.extend('新被动：' + labels.get(key, key) for key in after['passives'] if key not in before['passives'])
+    return changes
+
+
 def snapshot(actor, level, items):
+    previous_level = actor['level']
     old_max = actor["max_hp"]
     s = deepcopy(DATA["classes"][actor["template"]][str(level)])
     actor.update(
@@ -238,6 +275,8 @@ def snapshot(actor, level, items):
             else {}
         )
     actor.setdefault("equipment", deepcopy(s["equipment"]))
+    for slot in EQUIPMENT_SLOTS:
+        actor["equipment"].setdefault(slot, None)
     actor.setdefault("inventory", list(items))
     actor["known_spells"] = [
         a
@@ -259,6 +298,10 @@ def snapshot(actor, level, items):
     actor["known_before"] = list(actor["known_spells"])
     actor["growth_version"] = 1
     recalculate(actor, items)
+    if level > previous_level:
+        records = [dict(level=n, changes=level_changes(actor['template'], n)) for n in range(previous_level + 1, level + 1)]
+        actor.setdefault('growth_history', []).extend(records)
+        actor['last_growth'] = dict(previous=previous_level, level=level, records=deepcopy(records))
 
 
 def recalculate(a, items):
@@ -294,7 +337,7 @@ def recalculate(a, items):
     )
     if a["template"] == "monk":
         a["speed"] = (
-            12 if a["level"] >= 2 and not armor and not eq.get("off_hand") else 9
+            (15 if a["level"] >= 6 else 12) if a["level"] >= 2 and not armor and not eq.get("off_hand") else 9
         )
     a["speed"] = (a["speed"] if a["template"] == "monk" else DATA["classes"][a["template"]][str(a["level"])]["speed"]) + bonus(a, items, "speed_bonus")
 
@@ -333,7 +376,7 @@ class GrowthMixin:
                 for k, v in a["equipment"].items()
             )
             setup.append(dict(type="prepare", actor=a["id"], spells=a["prepared"]))
-        replay_engine = Engine(self._campaign_pack('forge')) if state.get('battle_slice') else self
+        replay_engine = Engine(self._campaign_pack('heart' if state.get('boss_slice') else 'forge')) if state.get('battle_slice') or state.get('boss_slice') else self
         fresh = Engine.new_run(
             replay_engine,
             state["name"],
@@ -345,9 +388,11 @@ class GrowthMixin:
         fresh["id"] = state["id"]
         fresh["development"] = True
         if state.get('battle_slice'): fresh['battle_slice'] = True
+        if state.get('boss_slice'): fresh['boss_slice'] = True
         fresh["battle_snapshot"]["id"] = state["id"]
         fresh["battle_snapshot"]["development"] = True
         if state.get('battle_slice'): fresh['battle_snapshot']['battle_slice'] = True
+        if state.get('boss_slice'): fresh['battle_snapshot']['boss_slice'] = True
         initial_events = fresh["event_log"]
         fresh["event_log"] = deepcopy(state["event_log"])
         fresh["event_seq"] = state["event_seq"]
@@ -388,8 +433,8 @@ class GrowthMixin:
         if kind == "levelup":
             if state.get('campaign') and a['level'] >= state['campaign']['unlocked_level']:
                 self._growth_error('level_locked', '战役等级由战斗胜利解锁；无法跳过成长节点。')
-            if a["level"] >= 5:
-                self._growth_error("level_cap", "本轮等级上限为5。")
+            if a["level"] >= LEVEL_CAP:
+                self._growth_error("level_cap", "本轮等级上限为8。")
             description = f"固定职业成长：{a['level']} → {a['level']+1} 级，保留已消耗资源与倒地状态。"
         else:
             if not a.get("growth_version"):
@@ -400,7 +445,7 @@ class GrowthMixin:
                 slot = c.get("slot")
                 if (
                     type(slot) != int
-                    or slot not in (1, 2, 3)
+                    or slot not in (1, 2, 3, 4)
                     or a["resources"].get("arcane_recovery", 0) < slot
                     or a["slots"].get(str(slot), 0) >= a["max_slots"].get(str(slot), 0)
                 ):
@@ -410,7 +455,7 @@ class GrowthMixin:
                     )
                 description = f"奥术回想：消耗{slot}点，恢复一个{slot}环法术位；短休不恢复回想点数。"
             elif kind == "equip":
-                eq = deepcopy(a["equipment"])
+                eq = dict.fromkeys(EQUIPMENT_SLOTS) | deepcopy(a["equipment"])
                 slot = c.get("slot")
                 item = c.get("item")
                 if not isinstance(slot, str) or slot not in eq:
@@ -475,6 +520,8 @@ class GrowthMixin:
             from .equipment import compare
             result["equipment_comparison"] = compare(a, item, slot, self.content["items"])
             result["warnings"].extend(result["equipment_comparison"]["warnings"])
+        elif kind == 'levelup':
+            result['growth_changes'] = level_changes(a['template'], a['level'] + 1)
         return result
 
     def _management_execute(self, state, c):
@@ -487,6 +534,8 @@ class GrowthMixin:
                 work["content_version"] = self.content["version"]
             work["rules_version"] = self.content["rules_version"]
         elif c["type"] == "equip":
+            for slot in EQUIPMENT_SLOTS:
+                a["equipment"].setdefault(slot, None)
             a["equipment"][c["slot"]] = c.get("item")
             recalculate(a, self.content["items"])
             if a["equipment"].get("armor") and "mage_armor" in a["effects"]:
@@ -501,7 +550,10 @@ class GrowthMixin:
                     if t["effects"].get("mage_armor", {}).get("source") == a["id"]:
                         del t["effects"]["mage_armor"]
                         t["ac"] = t["base_ac"]
-        self._emit(work, "growth", self._management_preview(state, c)["description"])
+        message = self._management_preview(state, c)["description"]
+        if c['type'] == 'levelup':
+            message += ' ' + '；'.join(level_changes(a['template'], a['level']))
+        self._emit(work, "growth", message)
         work["revision"] += 1
         return work, [deepcopy(work["event_log"][-1])]
 
@@ -524,6 +576,8 @@ class GrowthMixin:
             raise GameError("monk_armor", "此武僧技需要无甲无盾。")
         if b["level"] and aid not in a.get("prepared", []):
             raise GameError("not_prepared", "法术尚未准备。")
+        if c["type"] != ("cast" if b["level"] else "ability"):
+            raise GameError("invalid_command", "能力命令类型无效。")
         if b["cost"] != "free":
             self._need(a, b["cost"])
         cost = {} if b["cost"] == "free" else {b["cost"]: 1}
@@ -579,6 +633,12 @@ class GrowthMixin:
                 proficiency(a) + mod(a["stats"][stat]) + height,
                 targets[0]["ac"], adv, dis, self._blessed(a))
             result["attack_count"] = 2
+        elif aid == "blight":
+            dc = self._spell_dc(a)
+            result.update(save_dc=dc, failure_probability=self._save_failure_probability(targets[0], "con", dc),
+                          damage_dice="8d8", damage_type="necrotic")
+        elif aid == "death_ward" and targets[0]["hp"] <= 0:
+            raise GameError("invalid_target", "死亡防护需要仍有生命的队员；倒地请先治疗。")
         return result
 
     def _casting_equipment(self, a):
@@ -610,6 +670,13 @@ class GrowthMixin:
             if t["hp"] == 0:
                 self._heal(state, t, 1, "鼓舞起身")
             t["temp_hp"] = max(t["temp_hp"], 8)
+            self._emit(state, "effect", f"{t['id']} 获得鼓舞，当前临时生命 {t['temp_hp']}（同类取较高值，不叠加）。")
+        elif aid == "blight":
+            amount, detail = dice.roll(state, "8d8")
+            self._save_damage(state, t, amount, "necrotic", "con", self._spell_dc(a), "枯萎术", detail)
+        elif aid == "death_ward":
+            t["effects"]["death_ward"] = {"source": a["id"]}
+            self._emit(state, "effect", f"{t['id']} 获得死亡防护：本场首次被伤害降至0生命时改为1，随后消耗；同名不叠加。")
         elif aid == "preserve_life":
             for t in targets:
                 self._heal(state, t, 3 * a["level"], "维持生命")
@@ -624,7 +691,9 @@ class GrowthMixin:
         elif aid in ("mass_healing_word", "preserve_life", "aid"):
             from .equipment import bonus
             n, detail = dice.roll(state, f"{slot-2}d4")
+            healed = []
             for t in targets:
+                previous_hp = t['hp']
                 self._heal(
                     state,
                     t,
@@ -632,6 +701,9 @@ class GrowthMixin:
                     "群体治愈真言",
                     detail,
                 )
+                if t['hp'] > previous_hp:
+                    healed.append(t)
+            self._blessed_heal(state, a, healed, slot)
         elif aid == "flurry":
             for index in range(1, 3):
                 if t["hp"] <= 0:

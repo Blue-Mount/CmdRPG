@@ -43,7 +43,7 @@ def parse_action(tokens):
     if kind == 'buy' and len(args) == 2:
         return {'type': 'buy', 'actor': _actor(args[0]), 'item': args[1]}
     if kind == 'practice' and not args: return {'type':'practice'}
-    if kind == 'recover' and len(args)==2 and args[1] in ('1','2','3'):
+    if kind == 'recover' and len(args)==2 and args[1] in ('1','2','3','4'):
         return {'type':'recover','actor':_actor(args[0]),'slot':int(args[1])}
     if kind == 'levelup' and len(args)==1:
         return {'type':'levelup','actor':_actor(args[0])}
@@ -137,6 +137,10 @@ def parse_line(line):
         if len(args) != 1:
             raise ParseError("格式：actions P1。")
         return kind, _actor(args[0])
+    if kind == 'growth':
+        if len(args) > 1:
+            raise ParseError('格式：growth 或 growth P1。')
+        return kind, _actor(args[0]) if args else None
     if kind == "log":
         if len(args) > 1:
             raise ParseError("格式：log 10。")

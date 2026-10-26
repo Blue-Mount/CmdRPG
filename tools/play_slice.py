@@ -76,6 +76,8 @@ def choose(engine, state):
     if 'action_surge' in abilities and actor['budgets']['action']==0:
         commands.append({'type':'ability','actor':aid,'ability':'action_surge'})
     for enemy in enemies:
+        if 'blight' in abilities and 'fire' in enemy.get('resistances', []):
+            commands.append({'type':'cast','actor':aid,'ability':'blight','target':enemy['id']})
         if 'fireball' in abilities: commands.append({'type':'cast','actor':aid,'ability':'fireball','target':enemy['id']})
         if 'scorching_ray' in abilities: commands.append({'type':'cast','actor':aid,'ability':'scorching_ray','target':enemy['id']})
         if 'flurry' in abilities: commands.append({'type':'ability','actor':aid,'ability':'flurry','target':enemy['id']})
@@ -124,7 +126,7 @@ def play(templates=None, seed=42, max_commands=600, on_step=None, level=1):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--level',type=int,choices=range(1,6),default=1)
+    parser.add_argument('--level',type=int,choices=range(1,9),default=1)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--classes', default='fighter,monk,wizard,cleric')
     args = parser.parse_args()

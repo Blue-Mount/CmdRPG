@@ -4,6 +4,7 @@ from copy import deepcopy
 import io
 from itertools import product
 import os
+import re
 import subprocess
 import sys
 from unittest.mock import patch
@@ -60,6 +61,42 @@ def select(client, command):
         client.handle(",".join(str(next(n for n, entry in enumerate(client.ui.entries, 1)
                                         if entry["target"] == target)) for target in targets))
     assert client.ui.stage == "confirm"
+
+
+@pytest.mark.parametrize("node", [None, "outpost", "gate", "heart"])
+@pytest.mark.parametrize("development", [False, True])
+def test_settlement_choices_follow_numeric_order_in_decision_panel(tmp_path, node, development):
+    engine = Engine()
+    state = engine.new_run(seed=42, campaign=bool(node))
+    if node:
+        state['campaign']['node'] = node
+    if development:
+        state['development'] = True
+    for actor in state['actors'].values():
+        if actor['side'] == 'enemy':
+            actor.update(hp=0, conditions=['dead'])
+    engine._outcome(state)
+
+    class Victory(Engine):
+        def new_run(self, *args, **kwargs):
+            return deepcopy(state)
+
+    client, transport, screen = session(tmp_path, Victory())
+    try:
+        text = client.ui.render()
+        numbers = [int(n) for n in re.findall(r'(?:^| {2})(\d+)\.? ', text, re.MULTILINE)]
+        assert numbers == sorted(int(n) for n in client.menu)
+        pages = []
+        for _ in range(12):
+            pages.append('\n'.join(line.split(' | ', 1)[1] for line in screen.frame((132, 44)).splitlines()
+                                   if ' | ' in line))
+            screen.navigate('n')
+        right = '\n'.join(pages)
+        assert right.index('1 全队短休') < right.index('12 新开五站远征战役')
+        if node:
+            assert right.index('12 新开五站远征战役') < right.index('16 营地商店')
+    finally:
+        transport.close()
 
 
 @pytest.mark.parametrize("size", [(110, 36), (132, 44), (160, 50)])

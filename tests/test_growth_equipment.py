@@ -33,6 +33,31 @@ def arena(level=5):
     return engine, state
 
 
+def test_rally_wizard_temporary_hp_is_visible_and_absorbs_damage():
+    from types import SimpleNamespace
+    from client.menu import TerminalMenu
+    from client.render import actor_line, render_actor_card, render_map
+
+    e, s = arena(level=3)
+    s, events = e.execute(s, {"type": "ability", "actor": "P1", "ability": "rally", "target": "P3"})
+    wizard = s["actors"]["P3"]
+    hp = wizard["hp"]
+    assert wizard["temp_hp"] == 8
+    assert any("P3 获得鼓舞，当前临时生命 8" in event["text"] for event in events)
+
+    for damage, remaining in ((0, 8), (3, 5), (7, 0)):
+        if damage:
+            e._damage(s, wizard, damage, "bludgeoning", "测试攻击")
+        view = e.view(s)
+        actor = next(a for a in view["party"] if a["id"] == "P3")
+        outputs = [TerminalMenu(SimpleNamespace(view=view, pending=None)).render(),
+                   actor_line(actor), render_actor_card(actor), render_map(view)]
+        for output in outputs:
+            assert ("临时生命 %s" % remaining in output) if remaining else "临时生命" not in output
+        assert wizard["temp_hp"] == remaining
+    assert wizard["hp"] == hp - 2
+
+
 def safe(state):
     state["phase"] = "victory"
     state["outcome"] = "victory"
@@ -182,6 +207,10 @@ def test_upgrade_retains_spent_resources_hp_preparation_equipment_and_aid():
     assert a["resources"]["arcane_recovery"] == 1
     assert a["equipment"]["main_hand"] == "staff"
     assert "mage_armor" not in a["prepared"] and "fireball" in a["prepared"]
+    for level in (6, 7, 8):
+        s, _ = e.execute(s, {"type": "levelup", "actor": "P3"})
+    assert s['actors']['P3']['slots']['1'] == 2
+    assert s['actors']['P3']['slots']['4'] == 2
     with pytest.raises(GameError):
         e.execute(s, {"type": "levelup", "actor": "P3"})
 
@@ -438,7 +467,7 @@ def test_old_save_read_only_adapter_and_explicit_atomic_upgrade(tmp_path):
     assert repo._load(rid) == before
     receipt = repo.submit(rid, "upgrade", 0, command)
     assert receipt["view"]["party"][0]["level"] == 2
-    assert repo._load(rid)["content_version"] == "0.3.0-m3"
+    assert repo._load(rid)["content_version"] == "0.5.0-m5"
     repo.close()
     repo = Repository(db)
     assert repo.submit(rid, "upgrade", 0, command) == receipt

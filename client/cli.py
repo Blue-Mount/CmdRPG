@@ -12,14 +12,14 @@ import uuid
 
 from .parser import ParseError, parse_line
 from .render import (inspect, render_actions, render_events, render_map,
-                     render_party, render_preview, render_view, render_result)
+                     render_party, render_preview, render_view, render_result, render_growth_history)
 from .transport import LocalTransport, TransportError
 from .menu import TerminalMenu
 
 
 HELP = """中文游玩：选角色编号 → 选行动/技能编号 → 选目标编号或目的地 → 自动预览 → c 确认。
 0 返回并取消当前预览；q 退出。数字只选择当前列表条目；多目标可输入 1,2,3。
-当前可玩内容：独立前哨战，或五站远征战役；四职业从1级成长至5级，含路线分支与最终Boss。
+当前可玩内容：独立前哨战，或五站远征战役；四职业从1级成长至8级，含路线分支与两阶段最终Boss。
 首页9或战后12新开战役，保留旧周目。战役胜利后13/14选择路线，15营地休整，16商店。
 地图上下均有坐标；map 展开地形与地标，party 查资源，技能与规则菜单查完整说明。
 7–10 成长/装备/准备法术；独立开发局11号沿用当前组合重新演练。
@@ -28,6 +28,7 @@ resume                   恢复并显示局势
 party / map              队伍资源 / 可见格图
 inspect E1 / inspect G6   可见角色 / 静态地形
 actions P1               角色能力、消耗和不可用原因
+growth / growth P1       全队 / 指定队员升级记录
 preview move P2 G6       预览移动
 preview attack P1 E1     预览攻击
 preview cast P3 fire_bolt E1
@@ -327,10 +328,12 @@ class Client:
                 self._send_pending()
             elif kind == "resume":
                 self.refresh()
-            elif kind in ("party", "map", "inspect", "actions", "log"):
+            elif kind in ("party", "map", "inspect", "actions", "log", "growth"):
                 self.refresh(display=False)
                 if kind == "party":
                     self.output(render_party(self.view))
+                elif kind == 'growth':
+                    self.output(render_growth_history(self.view, value))
                 elif kind == "map":
                     self.output(render_map(self.view, self.ui.selected))
                 elif kind == "inspect":
@@ -364,7 +367,7 @@ def install_completion(client):
         import readline
     except ImportError:
         return
-    commands = ["resume", "party", "inspect", "actions", "preview", "move", "attack", "cast",
+    commands = ["resume", "party", "growth", "inspect", "actions", "preview", "move", "attack", "cast",
                 "ability", "dash", "disengage", "dodge", "help", "potion", "do", "end", "react",
                 "accept", "decline", "rest", "short", "retry", "resend", "log", "map", "quit"]
 

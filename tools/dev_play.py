@@ -7,18 +7,20 @@ import tempfile
 import uuid
 
 from core.engine import Engine
+from core.growth import CONTENT_VERSION, RULES_VERSION
 from saves.storage import Repository
 
 
 class PlaygroundEngine(Engine):
-    def __init__(self, levels, loadouts=None, battle_slice=False):
+    def __init__(self, levels, loadouts=None, battle_slice=False, boss_slice=False):
         super().__init__()
         self.battle_slice = battle_slice
-        if battle_slice:
+        self.boss_slice = boss_slice
+        if battle_slice or boss_slice:
             from core.growth import DATA
-            self.content.update(self._campaign_pack('forge'))
-            self.content['version'] = '0.3.0-m3'
-            self.content['rules_version'] = '0.3.0-provisional'
+            self.content.update(self._campaign_pack('heart' if boss_slice else 'forge'))
+            self.content['version'] = CONTENT_VERSION
+            self.content['rules_version'] = RULES_VERSION
             self.content['abilities'].update(DATA['abilities'])
             self.content['items'].update(DATA['items'])
         self.levels, self.loadouts = levels, loadouts
@@ -31,8 +33,10 @@ class PlaygroundEngine(Engine):
         )
         state["development"] = True
         if self.battle_slice: state['battle_slice'] = True
+        if self.boss_slice: state['boss_slice'] = True
         state["battle_snapshot"]["development"] = True
         if self.battle_slice: state['battle_snapshot']['battle_slice'] = True
+        if self.boss_slice: state['battle_snapshot']['boss_slice'] = True
         return state
 
 
@@ -41,12 +45,13 @@ def main(argv=None):
         if hasattr(stream, 'reconfigure'):
             stream.reconfigure(encoding='utf-8')
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--level", type=int, choices=range(1, 6), default=5)
+    parser.add_argument("--level", type=int, choices=range(1, 9), default=None)
     parser.add_argument("--levels", help="四人独立等级，例如 2,3,4,5")
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument('--campaign', action='store_true', help='五站完整战役雏形，从1级开始')
     parser.add_argument('--battle-slice', action='store_true', help='在熔炉地图反复体验四职业爆发、控制与装备；默认5级')
+    parser.add_argument('--boss-slice', action='store_true', help='独立两阶段Boss试玩，默认8级；战后11号可重新演练')
     parser.add_argument('--ui', choices=('auto', 'cards', 'plain'), default='auto', help='终端界面模式')
     parser.add_argument(
         "--equip",
@@ -61,13 +66,15 @@ def main(argv=None):
         help="P3:magic_missile,fireball；牧师须保留领域恒定法术",
     )
     args = parser.parse_args(argv)
-    if args.campaign and (args.levels or args.equip or args.prepare or args.battle_slice):
+    if args.battle_slice and args.boss_slice:
+        parser.error('请选择熔炉或Boss中的一个试玩场景。')
+    if args.campaign and (args.level is not None or args.levels or args.equip or args.prepare or args.battle_slice or args.boss_slice):
         parser.error('战役从1级起步，不能指定开发局等级、装备或法术准备。')
     try:
         levels = (
             [int(x) for x in args.levels.split(",")]
             if args.levels
-            else [args.level] * 4
+            else [args.level or (8 if args.boss_slice else 5)] * 4
         )
         loadouts = []
         for value in args.equip:
@@ -89,7 +96,7 @@ def main(argv=None):
                     spells=spells.split(",") if spells else [],
                 )
             )
-        engine = Engine() if args.campaign else PlaygroundEngine(levels, loadouts, args.battle_slice)
+        engine = Engine() if args.campaign else PlaygroundEngine(levels, loadouts, args.battle_slice, args.boss_slice)
         # Validate before allocating any on-disk save.
         engine.new_run(templates=args.classes.split(","), seed=args.seed, campaign=args.campaign)
     except Exception as exc:
@@ -101,6 +108,8 @@ def main(argv=None):
         "M4战役试玩" if args.campaign else 'M3开发试玩', args.classes.split(","), args.seed, str(uuid.uuid4()), campaign=args.campaign
     )
     run_id = receipt["run_id"]
+    if args.boss_slice or args.battle_slice:
+        print('独立试玩：%s · 队伍等级 %s' % (engine.content['encounter']['name'], '/'.join(str(n) for n in levels)), flush=True)
     print(
         f'独立开发存档：{database}\n恢复：python -m client --db "{database}" --config "{config}" --run {run_id}',
         flush=True,

@@ -230,7 +230,13 @@ def _validate(pack):
 
     for ident, enemy in pack["enemies"].items():
         loc = f"enemies.{ident}"
-        _object(enemy, loc, {"name", "hp", "ac", "stats", "speed", "range", "dice", "damage_type", "role"}, {"attack_stat", "save_proficiencies", "resistances", "spell"})
+        _object(enemy, loc, {"name", "hp", "ac", "stats", "speed", "range", "dice", "damage_type", "role"}, {"attack_stat", "save_proficiencies", "resistances", "spell", "boss"})
+        if 'boss' in enemy:
+            config = _object(enemy['boss'], loc + '.boss', {'threshold', 'radius', 'dice', 'dc'})
+            _number(config['threshold'], loc + '.boss.threshold', 0.1, 0.9)
+            _number(config['radius'], loc + '.boss.radius', 1.5, 9)
+            _dice(config['dice'], loc + '.boss.dice')
+            _number(config['dc'], loc + '.boss.dc', 8, 20, integer=True)
         if "resistances" in enemy and (not isinstance(enemy['resistances'], list) or any(not isinstance(x, str) or x not in DAMAGE_TYPES for x in enemy['resistances']) or len(set(enemy['resistances'])) != len(enemy['resistances'])):
             _fail(loc, "invalid resistance types")
         if "spell" in enemy:

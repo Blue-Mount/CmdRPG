@@ -74,10 +74,15 @@ def _conditions(actor):
     return "、".join(CONDITIONS.get(str(value), str(value)) for value in values) or "正常"
 
 
+def temporary_hp_text(actor):
+    return "  临时生命 %s" % actor["temp_hp"] if actor.get("temp_hp", 0) > 0 else ""
+
+
 def actor_line(actor, detailed=False):
     result = "%s %s  生命 %s/%s  防御 %s  位置 %s" % (
         actor.get("id", "?"), actor.get("name", "?"), actor.get("hp", "?"),
         actor.get("max_hp", "?"), actor.get("ac", "?"), actor.get("position", "未知"))
+    result += temporary_hp_text(actor)
     budgets = actor.get("budgets")
     if budgets and actor.get("status") != "未轮到":
         result += "  动作 %s / 附赠 %s / 反应 %s / 移动 %s米" % (
@@ -114,16 +119,42 @@ def actor_line(actor, detailed=False):
 
 
 def render_growth(actor):
-    slots={'main_hand':'主手','off_hand':'副手','armor':'护甲'}
+    slots={'main_hand':'主手','off_hand':'副手','armor':'护甲','ring':'戒指','feet':'鞋子'}
     stats={'str':'力量','dex':'敏捷','con':'体质','int':'智力','wis':'感知','cha':'魅力'}
     lines=[f"{actor.get('id','')} {actor.get('name','')} · 等级 {actor.get('level',1)} · 熟练 +{actor.get('proficiency',2)} · 额外攻击 {actor.get('extra_attack',0)}"]
+    recent = actor.get('last_growth')
+    if recent:
+        lines.append('最近成长：%s → %s级' % (recent['previous'], recent['level']))
+        for record in recent['records']:
+            lines.append('  %s级：%s' % (record['level'], '；'.join(record['changes'])))
+    lines.append('growth %s 查看完整升级记录。' % actor.get('id', 'P1'))
     lines.append('属性：'+'，'.join(stats.get(k,k)+' '+str(v) for k,v in actor.get('stats',{}).items()))
     lines.append('装备：'+'，'.join(slots.get(k,k)+' '+v for k,v in actor.get('equipment_names',{}).items()))
     lines.append('法术位：'+render_cost({'slot_'+k:v for k,v in actor.get('slots',{}).items()}))
     lines.append('职业资源：'+render_cost(actor.get('resources',{})))
+    passives = {'evasion':'闪避：敏捷半伤豁免成功免伤，失败减半（失能时无效）',
+                'blessed_healer':'受祝福的医者：法术治疗其他队友时，自身恢复2+环级（每次施法一次）',
+                'divine_strike':'神圣打击：自己回合首次武器命中追加1d8光耀，暴击翻倍骰数；不用于借机攻击'}
+    lines.extend('被动：' + passives[key] for key in actor.get('passives', []) if key in passives)
     names={x['id']:x['name'] for x in actor.get('abilities',[])}
     lines.append('已准备：'+'、'.join(names.get(x,x) for x in actor.get('prepared',[])))
     if actor.get('always_prepared'): lines.append('领域恒定准备：'+'、'.join(names.get(x,x) for x in actor['always_prepared']))
+    return '\n'.join(lines)
+
+
+def render_growth_history(view, actor_id=None):
+    party = [actor for actor in view.get('party', []) if actor_id is None or actor['id'] == actor_id]
+    if not party:
+        raise ValueError('没有队员 %s。' % actor_id)
+    lines = ['升级记录（固定职业成长；实际生命与资源消耗保留）']
+    for actor in party:
+        lines.append('%s %s · 当前%s级' % (actor['id'], actor['name'], actor['level']))
+        records = actor.get('growth_history', [])
+        if not records:
+            lines.append('  暂无已保存的升级记录；旧档更新前的历史不会补造。')
+        for record in records:
+            lines.append('  %s → %s级：' % (record['level'] - 1, record['level']))
+            lines.extend('    ' + change for change in record['changes'])
     return '\n'.join(lines)
 
 
@@ -180,7 +211,7 @@ def render_actor_card(actor):
     budgets = actor.get("budgets", {})
     lines = ["%s %s  生命 %s/%s  [%s]" % (
         actor["id"], actor.get("name", ""), actor.get("hp", "?"), actor.get("max_hp", "?"),
-        actor.get("status", "") or _conditions(actor)),
+        actor.get("status", "") or _conditions(actor)) + temporary_hp_text(actor),
         "动作 %s · 附赠 %s · 反应 %s · 移动 %s米" % (
             budgets.get("action", 0), budgets.get("bonus", 0), budgets.get("reaction", 0),
             _number(budgets.get("movement", 0)))]
@@ -263,6 +294,9 @@ def render_preview(number, preview, revision, view=None):
     lines = ["%s（预览 %s，版本 %s）" % (context, number, revision),
              "影响：" + _named_text(preview.get("description", "行动"), view),
              "消耗：" + render_cost(preview.get("cost", {}))]
+    if preview.get('growth_changes'):
+        lines.append('升级收益：')
+        lines.extend('  ' + change for change in preview['growth_changes'])
     if preview.get("targets"):
         lines.append("目标：" + "、".join(_actor_name(view, target.get("id", target.get("name", "?")))
                                          if isinstance(target, dict) else _actor_name(view, target)
@@ -296,7 +330,7 @@ def render_preview(number, preview, revision, view=None):
         lines.append('装备对比（穿戴后；命中率需在战斗中选择具体目标预览）：')
         labels = {'damage_dice':'武器伤害骰', 'damage_bonus':'武器伤害加值', 'attack_bonus':'武器命中加值',
                   'ac':'AC', 'speed':'移动米', 'spell_attack':'法术攻击', 'spell_dc':'法术DC',
-                  'healing_bonus':'装备法术治疗加值', 'weapon_proficient':'武器熟练', 'two_handed':'双手占位',
+                  'healing_bonus':'装备法术治疗加值', 'save_bonus':'装备属性豁免加值', 'weapon_proficient':'武器熟练', 'two_handed':'双手占位',
                   'martial_arts':'无甲武艺', 'casting_allowed':'允许施法', 'attack_disadvantage':'护甲不熟练攻击劣势', 'resources':'职业资源上限'}
         for field, label in labels.items():
             before, after = comparison['before'][field], comparison['after'][field]
@@ -573,13 +607,18 @@ def render_map(view, selected=None, reachable=None, detailed=True):
         status = actor.get("status") or ("可操作" if actor["id"] in view.get("active", []) else "倒地" if "downed" in actor.get("conditions", []) else "死亡" if "dead" in actor.get("conditions", []) else "已结束" if actor.get("ended") else "待轮到")
         party.append("%s %s%s 生命%s/%s %s %s" % (
             actor["id"], actor.get("name", ""), "（已选）" if actor["id"] == selected else "",
-            actor.get("hp", "?"), actor.get("max_hp", "?"), actor.get("position", "未知"), status))
+            actor.get("hp", "?"), actor.get("max_hp", "?"), actor.get("position", "未知"), status) + temporary_hp_text(actor))
     if party and detailed:
         notes.append("队员：")
         notes.extend("  " + actor for actor in party)
     enemies = ["%s %s 生命%s/%s %s" % (actor["id"], actor.get("name", ""), actor.get("hp", "?"), actor.get("max_hp", "?"), actor.get("position", "未知"))
                for actor in living_enemies]
     notes.append("可见敌人：" + ("；".join(enemies) or "当前无可见敌人，敌人位置可能未知"))
+    for actor in living_enemies:
+        if actor.get('boss_phase'):
+            rule = actor.get('boss_rule', {})
+            suffix = ' · 火抗；%s米震荡/18米火矛，敏捷DC%s，%s火焰' % (rule.get('radius','?'), rule.get('dc','?'), rule.get('dice','?')) if actor['boss_phase'] == 2 else ''
+            notes.append('%s Boss阶段 %s%s' % (actor['id'], actor['boss_phase'], suffix))
     for remembered in view.get("last_seen", []):
         notes.append("%s? 最后目击：第 %s 回合 %s（当前位置未知）" % (remembered["id"], remembered["round"], remembered["position"]))
     if fallen_enemies and detailed:

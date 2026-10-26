@@ -32,7 +32,7 @@ def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
             actor['resources']['potions'] = 1
         before = deepcopy(state)
         settle(engine, state)
-        level = min(stage + 1, 5)
+        level = [2,4,6,8,8][stage - 1]
         assert state['campaign']['gold'] == before['campaign']['gold'] + 60 + 20 * stage
         assert engine.view(state)['settlement']['loot_available'] is False
         for aid in ['P1', 'P2', 'P3', 'P4']:
@@ -51,7 +51,7 @@ def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
             with pytest.raises(GameError):
                 engine.execute(state, {'type': 'levelup', 'actor': aid})
         fighter, wizard = state['actors']['P1'], state['actors']['P3']
-        assert fighter['stats']['str'] == (18 if level >= 4 else 16)
+        assert fighter['stats']['str'] == (20 if level >= 6 else 18 if level >= 4 else 16)
         assert fighter['extra_attack'] == int(level >= 5)
         assert ('scorching_ray' in wizard['known_spells']) == (level >= 3)
         assert ('fireball' in wizard['known_spells']) == (level >= 5)

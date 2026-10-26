@@ -34,7 +34,7 @@ def test_five_real_battles_to_boss(party, route):
     state, report = play(party, seed=42, route=route)
     assert report['completed'], report
     assert [b['node'] for b in report['battles']] == ['outpost', route, 'gate', 'forge', 'heart']
-    assert [b['levels'] for b in report['battles']] == [[2]*4, [3]*4, [4]*4, [5]*4, [5]*4]
+    assert [b['levels'] for b in report['battles']] == [[2]*4, [4]*4, [6]*4, [8]*4, [8]*4]
     assert all(b['outcome'] == 'victory' for b in report['battles'])
     assert len(state['campaign']['cleared']) == 5
     assert any(e['kind'] == 'campaign_complete' for e in state['event_log'])
@@ -139,11 +139,12 @@ def test_campaign_menu_new_run_cancel_shop_and_travel(tmp_path):
         assert '没有下一关' not in '\n'.join(output)
         client.handle('16'); client.handle('1')
         assert client.ui.stage == 'shop'
-        client.handle('2')  # greatsword
+        greatsword = str(next(n for n, item in enumerate(client.view['campaign']['shop'], 1) if item['id'] == 'greatsword'))
+        client.handle(greatsword)
         gold = client.view['campaign']['gold']
         client.handle('0')
         assert client.view['campaign']['gold'] == gold
-        client.handle('2'); client.handle('c')
+        client.handle(greatsword); client.handle('c')
         assert 'greatsword' in client.view['party'][0]['inventory']
         assert client.view['campaign']['gold'] == gold - 35
         client.handle('15'); client.handle('c')
@@ -197,8 +198,8 @@ def test_campaign_save_version_is_distinct_from_m3_and_rejects_wrong_versions():
     engine = Engine()
     ordinary = engine.new_run(seed=42)
     campaign = engine.new_run(seed=42, campaign=True)
-    assert ordinary['content_version'] == '0.3.0-m3'
-    assert campaign['content_version'] == '0.4.0-m4'
+    assert ordinary['content_version'] == '0.5.0-m5'
+    assert campaign['content_version'] == '0.5.0-campaign'
     for field, value in [('version', 99), ('content_version', '0.3.0-m3')]:
         invalid = deepcopy(campaign)
         if field == 'version': invalid['campaign']['version'] = value

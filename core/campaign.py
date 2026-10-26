@@ -9,7 +9,7 @@ from .growth import snapshot, recalculate
 
 
 COMMANDS = {"travel", "camp", "buy"}
-CONTENT_VERSION = '0.4.0-m4'
+CONTENT_VERSION = '0.5.0-campaign'
 
 
 def load_campaign(path=None):
@@ -32,6 +32,8 @@ def load_campaign(path=None):
             raise ValueError('campaign: invalid stage')
         if type(node.get('gold')) is not int or node['gold'] < 0 or not node.get('name'):
             raise ValueError('campaign: invalid reward/name')
+        if type(node.get('reward_level')) is not int or not 1 <= node['reward_level'] <= 8:
+            raise ValueError('campaign: invalid reward level')
         if 'equipment_reward' in node and (not isinstance(node['equipment_reward'], dict) or set(node['equipment_reward']) != set(DATA['classes']) or
                 any(not isinstance(v, str) or v not in items or items[v]['kind'] == 'potion' for v in node['equipment_reward'].values())):
             raise ValueError('campaign: invalid equipment reward')
@@ -96,10 +98,14 @@ class CampaignMixin:
         node = self.campaign_content['nodes'][key]
         progress['cleared'].append(key)
         progress['gold'] += node['gold']
-        progress['unlocked_level'] = min(5, node['stage'] + 1)
+        progress['unlocked_level'] = max(progress['unlocked_level'], node['reward_level'])
         for actor in state['actors'].values():
             if actor['side'] == 'party':
+                previous_level = actor['level']
                 snapshot(actor, progress['unlocked_level'], self.content['items'])
+                if actor['level'] > previous_level:
+                    for record in actor['last_growth']['records']:
+                        self._emit(state, 'levelup', f"{actor['id']} {record['level']-1} → {record['level']}级：" + '；'.join(record['changes']), actor=actor['id'], level=record['level'])
         self._emit(state, 'campaign_reward', f"{node['name']}胜利：金币 +{node['gold']}；全队成长至{progress['unlocked_level']}级。生命与资源消耗保留，营地可恢复。")
         for actor in state['actors'].values():
             if actor['side'] == 'party':

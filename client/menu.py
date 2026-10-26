@@ -6,7 +6,7 @@ import re
 from .parser import ParseError
 from .render import (render_map, render_menu_actions, render_options,
                      render_party, render_preview, render_rules, render_growth,
-                     render_actor_card, render_action_card)
+                     render_actor_card, render_action_card, temporary_hp_text, render_growth_history)
 
 
 class TerminalMenu:
@@ -73,6 +73,7 @@ class TerminalMenu:
             menu.update({str(n):("growth",a["id"]) for n,a in enumerate(client.view.get("party",[]),7)})
             if client.view.get("development"): menu["11"]=("practice",None)
             menu['12'] = ('campaign_new', None)
+            menu['17'] = ('read', 'growth')
             campaign = client.view.get('campaign')
             if campaign:
                 menu.update({str(n): ('campaign_command', ({'type': 'travel', 'destination': route['id']}, route['name']))
@@ -88,7 +89,7 @@ class TerminalMenu:
         elif self.stage == "growth":
             actor=self.actor()
             entries=[]
-            cap = (client.view.get('campaign') or {}).get('unlocked_level', 5)
+            cap = (client.view.get('campaign') or {}).get('unlocked_level', 8)
             if actor['level']<cap: entries.append(('固定职业升级',{'type':'levelup','actor':self.selected}))
             for slot in actor.get('equipment',{}):
                 if actor['equipment'][slot]: entries.append(('卸下 '+actor['equipment_names'][slot],{'type':'equip','actor':self.selected,'slot':slot,'item':None}))
@@ -129,7 +130,7 @@ class TerminalMenu:
         if self.stage == "home":
             for n, actor in enumerate(client.view.get("party", []), 1):
                 status = actor.get("status") or ("可操作" if actor["id"] in client.view.get("active", []) else "暂不可操作，可查看技能")
-                lines.append("%s. %s %s  生命 %s/%s  [%s]" % (n, actor["id"], actor["name"], actor["hp"], actor["max_hp"], status))
+                lines.append("%s. %s %s  生命 %s/%s%s  [%s]" % (n, actor["id"], actor["name"], actor["hp"], actor["max_hp"], temporary_hp_text(actor), status))
                 lines.extend("   " + line for line in render_actor_card(actor).splitlines()[1:])
             lines.append("5 地图  6 队伍资源  7 详细日志  8 操作帮助")
             if "9" in menu:
@@ -139,12 +140,8 @@ class TerminalMenu:
             if campaign:
                 lines.append('%s · %s/5站 · 金币%s · %s' % (campaign['name'], campaign['stage'], campaign['gold'],
                               '远征已通关，裂隙关闭！' if campaign['completed'] else '本场胜利，全队已成长至%s级' % campaign['unlocked_level']))
-                for n, (kind, entry) in menu.items():
-                    if kind == 'campaign_command':
-                        lines.append(n + ' ' + entry[1] + ('（20金币；全队复苏、生命/法术位/职业资源全恢复）' if entry[0]['type'] == 'camp' else ''))
-                lines.append('16 营地商店（药水与装备）  12 新开战役（保留当前结局）')
             else:
-                lines.append('战斗结果：胜利。12 新开五站远征战役（保留本局）')
+                lines.append('战斗结果：胜利。')
             summary = client.view.get("battle_summary", {})
             if summary:
                 lines.append("本场摘要：%s 回合；倒地 %s 次，死亡 %s；消耗法术位 %s、药水 %s；双方累计伤害 %s、治疗 %s。" % (client.view.get("round", "?"), summary.get("downed", 0), summary.get("deaths", 0), summary.get("slots", 0), summary.get("potions", 0), summary.get("damage", 0), summary.get("healing", 0)))
@@ -155,6 +152,13 @@ class TerminalMenu:
             lines.append("4 查看地图  5 详细日志  6 战利品说明")
             lines.append("  ".join(n+" "+v+" 成长与装备" for n,(k,v) in menu.items() if k=="growth"))
             if "11" in menu: lines.append("11 沿用当前成长与装备重新演练（全部资源刷新）")
+            lines.append('12 新开五站远征战役（保留本局）')
+            for n, (kind, entry) in sorted(menu.items(), key=lambda pair: int(pair[0])):
+                if kind == 'campaign_command':
+                    lines.append(n + ' ' + entry[1] + ('（20金币；全队复苏、生命/法术位/职业资源全恢复）' if entry[0]['type'] == 'camp' else ''))
+                elif kind == 'shop_party':
+                    lines.append(n + ' 营地商店（药水与装备）')
+            lines.append('17 查看全队升级记录')
             if not campaign:
                 lines.append((client.view.get("settlement") or {}).get("loot_description", "本场没有可拾取战利品，暂时无法搜刮遗体。"))
         elif self.stage == 'shop_party':
@@ -405,6 +409,8 @@ class TerminalMenu:
                 self.client.output(render_map(self.client.view, self.selected))
             elif value == "party":
                 self.client.output(render_party(self.client.view))
+            elif value == 'growth':
+                self.client.output(render_growth_history(self.client.view))
             elif value == "log":
                 self.client._log(10)
             elif value == "rules":
@@ -453,7 +459,7 @@ class TerminalMenu:
             if kind == 'campaign_new':
                 self.confirmation['campaign'] = True
                 self.action = {'name': '新开五站远征战役'}
-                self.client.output('五站远征：前哨 → 旧道/山脊 → 要塞 → 熔炉 → 最终Boss。四人从1级成长至5级。')
+                self.client.output('五站远征：前哨 → 旧道/山脊 → 要塞 → 熔炉 → 最终Boss。四人从1级成长至8级。')
             self.client.output("新建独立周目，使用相同的四人职业阵容，生命和资源从初始模板重新开始。")
             self.client.output("原周目已保留，可用 --run %s 恢复；新战斗开始后自动保存。" % self.client.run_id)
             self.show()

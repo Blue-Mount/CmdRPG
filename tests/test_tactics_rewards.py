@@ -146,7 +146,13 @@ def test_stun_miss_does_not_spend_ki_and_successful_save_resists():
     ('P1','longsword_plus1','attack_bonus',1),('P1','longsword_plus1','damage_bonus',1),
     ('P2','striking_staff','attack_bonus',1),('P2','wind_staff','speed',3),
     ('P3','focus_staff','spell_attack',1),('P3','focus_staff','spell_dc',1),
-    ('P3','warding_staff','ac',1),('P4','mercy_mace','healing_bonus',2)])
+    ('P3','warding_staff','ac',1),('P4','mercy_mace','healing_bonus',2),
+    ('P1','gatewarden_blade','attack_bonus',1),('P1','gatewarden_blade','damage_bonus',1),
+    ('P1','gatewarden_blade','ac',1),
+    ('P2','stormstride_staff','attack_bonus',1),('P2','stormstride_staff','speed',3),
+    ('P3','runic_bulwark_staff','spell_attack',1),('P3','runic_bulwark_staff','spell_dc',1),
+    ('P3','runic_bulwark_staff','ac',1),
+    ('P4','dawnwatch_mace','healing_bonus',3),('P4','dawnwatch_mace','ac',1)])
 def test_each_class_equipment_direction_changes_actual_stats(actor,item,field,difference):
     e,s=arena(); before=stats(s['actors'][actor],e.content['items'])
     s=equip(e,s,actor,item)
@@ -156,8 +162,9 @@ def test_each_class_equipment_direction_changes_actual_stats(actor,item,field,di
     assert stats(s['actors'][actor],e.content['items'])==after
 
 
-def test_focus_preview_and_execution_attack_and_save_match():
-    e,s=arena(); s=equip(e,s,'P3','focus_staff'); combat(s)
+@pytest.mark.parametrize('item', ['focus_staff', 'runic_bulwark_staff'])
+def test_focus_preview_and_execution_attack_and_save_match(item):
+    e,s=arena(); s=equip(e,s,'P3',item); combat(s)
     c=dict(type='cast',actor='P3',ability='scorching_ray',target='E2')
     p=e.preview(s,c)
     with patch('core.dice.die',side_effect=lambda state,sides:min(10,sides)):
@@ -190,16 +197,17 @@ def test_ward_stacks_mage_armor_speed_removed_when_armored_and_comparison_warns(
     assert not cmp['after']['casting_allowed'] and cmp['warnings']
 
 
+@pytest.mark.parametrize('item,healing', [('mercy_mace', 2), ('dawnwatch_mace', 3)])
 @pytest.mark.parametrize('ability', ['healing_word','cure_wounds','mass_healing_word'])
-def test_mercy_equipment_heals_each_target_but_not_potions(ability):
-    e,s=arena(); s=equip(e,s,'P4','mercy_mace'); combat(s)
+def test_mercy_equipment_heals_each_target_but_not_potions(ability, item, healing):
+    e,s=arena(); s=equip(e,s,'P4',item); combat(s)
     for a in s['actors'].values():
         if a['side']=='party': a['hp']=1
     c=dict(type='cast',actor='P4',ability=ability)
     if ability!='mass_healing_word': c['target']='P3'
     with patch('core.dice.die',side_effect=lambda state,sides:min(10,sides)):
         after,events=e.execute(s,c)
-    expected=4+4+3+2 if ability=='healing_word' else 8+4+3+2 if ability=='cure_wounds' else 4+4+5+2
+    expected=4+4+3+healing if ability=='healing_word' else 8+4+3+healing if ability=='cure_wounds' else 4+4+5+healing
     assert after['actors']['P3']['hp']==1+expected
     s['actors']['P4']['hp']=1
     with patch('core.dice.die',side_effect=lambda state,sides:min(10,sides)):
@@ -230,9 +238,50 @@ def test_staged_shop_purchase_preview_optional_camp_and_equipment_reward_idempot
     s['campaign'].update(node='gate',cleared=['outpost','road'])
     e._campaign_reward(s)
     before=deepcopy(s); e._campaign_reward(s); assert s==before
-    assert 'warding_staff' in s['actors']['P3']['inventory']
-    assert 'mercy_mace' in s['actors']['P4']['inventory']
+    rewards = e.campaign_content['nodes']['gate']['equipment_reward']
+    assert set(rewards.values()).isdisjoint(e.campaign_content['shop'])
+    assert len(set(rewards.values())) == 4
+    for actor in s['actors'].values():
+        if actor['side'] == 'party':
+            item = rewards[actor['template']]
+            assert actor['inventory'].count(item) == 1
+            assert item not in actor['equipment'].values()
+            assert any(event['kind'] == 'equipment_reward' and event['details']['item'] == item
+                       for event in s['event_log'])
     assert 'plate' in {x['id'] for x in e.view(s)['campaign']['shop']}
+
+
+def test_unique_rewards_equip_persist_and_carry_to_next_encounter(tmp_path):
+    e, s = victory()
+    s['campaign'].update(node='gate', cleared=['outpost', 'road'])
+    e._campaign_reward(s)
+    rewards = e.campaign_content['nodes']['gate']['equipment_reward']
+
+    class Fixture(Engine):
+        def new_run(self, *args, **kwargs):
+            return deepcopy(s)
+
+    path = tmp_path / 'unique-rewards.sqlite3'
+    store = Repository(path, Fixture())
+    rid = store.create_run(command_id='new')['run_id']
+    for index in range(1, 5):
+        aid = 'P%s' % index
+        item = rewards[s['actors'][aid]['template']]
+        command = dict(type='equip', actor=aid, slot='main_hand', item=item)
+        preview = store.preview(rid, command)
+        assert preview['equipment_comparison']['effect'] == e.content['items'][item]['description']
+        receipt = store.submit(rid, 'equip-%s' % index, index - 1, command)
+        store.close()
+        store = Repository(path)
+        assert store.submit(rid, 'equip-%s' % index, index - 1, command) == receipt
+    receipt = store.submit(rid, 'travel', 4, dict(type='travel', destination='forge'))
+    store.close()
+    with Repository(path) as reopened:
+        assert reopened.get_view(rid) == receipt['view']
+        for actor in receipt['view']['party']:
+            item = rewards[actor['template']]
+            assert actor['inventory'].count(item) == 1
+            assert actor['equipment']['main_hand'] == item
 
 
 def test_split_and_ground_chinese_menu_confirm_cancel_sqlite_reopen(tmp_path):

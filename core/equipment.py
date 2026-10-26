@@ -5,14 +5,14 @@ from copy import deepcopy
 from .growth import PROF, mod, proficiency, recalculate
 
 
-BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus"}
+BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus"}
 
 
 def bonus(actor, items, field):
     total = 0
     for item_id in actor.get("equipment", {}).values():
         item = items.get(item_id, {})
-        if field == "speed_bonus" and (actor["template"] != "monk" or
+        if field == "speed_bonus" and item.get("slot") == "main_hand" and (actor["template"] != "monk" or
                 actor["equipment"].get("armor") or actor["equipment"].get("off_hand")):
             continue
         total += item.get(field, 0)
@@ -39,6 +39,7 @@ def stats(actor, items):
                 spell_attack=proficiency(actor) + spell_mod + bonus(actor, items, "spell_attack") if actor.get("spell_stat") else None,
                 spell_dc=8 + proficiency(actor) + spell_mod + bonus(actor, items, "spell_dc") if actor.get("spell_stat") else None,
                 healing_bonus=bonus(actor, items, "healing_bonus"),
+                save_bonus=bonus(actor, items, "save_bonus"),
                 resources=deepcopy(actor.get("max_resources", {})))
 
 

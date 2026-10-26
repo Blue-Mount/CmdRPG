@@ -67,7 +67,7 @@ class TacticsMixin:
             targets = [t for t in self._burst_targets(state, centre)
                        if self._visible(state, t) and not self._sculpted(actor, t)]
             dc = self._spell_dc(actor)
-            result.update(centre=centre, radius=6, damage_dice="8d6", save_dc=dc,
+            result.update(centre=centre, radius=6, damage_dice=f"{8 + normalized['slot'] - 3}d6", save_dc=dc,
                           targets=[t["id"] for t in targets],
                           saves=[dict(target=t["id"], dc=dc, failure_probability=self._save_failure_probability(t, "dex", dc), resistant='fire' in t.get('resistances', [])) for t in targets])
             result["warnings"].append("范围按三维距离结算；塑能保护友军，豁免成功减半，抗性另行生效。")
@@ -106,7 +106,7 @@ class TacticsMixin:
             dc = 8 + proficiency(actor) + mod(actor["stats"]["wis"])
             result.update(save_dc=dc, failure_probability=self._save_failure_probability(targets[0], "con", dc), conditional_cost={"ki_on_hit": 1})
         else:
-            result["warnings"].append("逐段按已分配目标结算；被击败目标的剩余段跳过，不自动转移，其他目标继续。")
+            result["warnings"].append("逐段按已分配目标及当时状态结算；抗性变化影响后续段伤害。被击败目标的剩余段跳过，不自动转移，其他目标继续。")
         return result
 
     def _spell_attack(self, actor):
@@ -127,10 +127,10 @@ class TacticsMixin:
         self._emit(state, "ability", f"{actor['id']} 使用 {self.content['abilities'][ability_id]['name']}。", slot=command.get("slot", 0))
         if ability_id == "fireball":
             centre = command.get("destination") or state["actors"][command["target"]]["position"]
-            amount, detail = dice.roll(state, "8d6")
+            amount, detail = dice.roll(state, f"{8 + command['slot'] - 3}d6")
             for target in self._burst_targets(state, centre):
                 if not self._sculpted(actor, target):
-                    self._damage(state, target, amount // 2 if self._save(state, target, "dex", self._spell_dc(actor), "火球术") else amount, "fire", "火球术", detail)
+                    self._save_damage(state, target, amount, 'fire', 'dex', self._spell_dc(actor), '火球术', detail)
             return
         count = 1 if ability_id == "stunning_strike" else command["slot"] + (2 if ability_id == "magic_missile" else 1)
         ids = command.get("targets", [command.get("target")] * count)
