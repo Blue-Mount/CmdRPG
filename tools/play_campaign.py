@@ -8,10 +8,11 @@ from core.engine import Engine
 from .play_slice import choose
 
 
-def play(templates=None, seed=42, route='road', max_commands=1200, on_step=None):
+def play(templates=None, seed=42, route='road', max_commands=1200, on_step=None, *, chooser=None):
     engine = Engine()
     state = engine.new_run(templates=templates, seed=seed, campaign=True)
     battles = []
+    activity = {}
     count = 0
 
     def write(operation, payload):
@@ -19,15 +20,26 @@ def play(templates=None, seed=42, route='road', max_commands=1200, on_step=None)
         old = deepcopy(state)
         state, events = engine.react(state, payload) if operation == 'reaction' else engine.execute(state, payload)
         count += 1
+        if old['phase'] == 'combat' and isinstance(payload, dict):
+            row = activity.setdefault(old['campaign']['node'], dict(moves=0, movement=0, ends=0, unused_action_ends=0))
+            if payload.get('type') == 'move':
+                row['moves'] += 1
+                row['movement'] += sum(e['details'].get('cost', 0) for e in events
+                                       if e['kind'] == 'move' and e['text'].startswith(payload['actor'] + ' '))
+            elif payload.get('type') == 'end':
+                row['ends'] += 1
+                row['unused_action_ends'] += int(old['actors'][payload['actor']]['budgets']['action'] > 0)
         if on_step:
             on_step(old, operation, payload, state, events)
 
     while count < max_commands:
         if state['phase'] == 'combat':
-            write(*choose(engine, state))
+            write(*(chooser or choose)(engine, state))
             continue
         progress = state['campaign']
         battles.append(dict(node=progress['node'], rounds=state['round'], outcome=state['outcome'],
+                            activity=deepcopy(activity.get(progress['node'], {})),
+                            report=deepcopy(state.get('battle_report')),
                             levels=[a['level'] for a in state['actors'].values() if a['side'] == 'party']))
         if state['phase'] != 'victory' or progress['completed']:
             return state, dict(seed=seed, route=route, templates=templates or ['fighter','monk','wizard','cleric'],
@@ -36,7 +48,8 @@ def play(templates=None, seed=42, route='road', max_commands=1200, on_step=None)
         routes = engine.view(state)['campaign']['routes']
         destination = route if len(routes) > 1 else routes[0]['id']
         write('command', {'type': 'travel', 'destination': destination})
-    raise RuntimeError('Campaign smoke player exceeded command limit')
+    raise RuntimeError('Campaign smoke player exceeded command limit at %s, round %s' %
+                       (state['campaign']['node'], state['round']))
 
 
 def main():

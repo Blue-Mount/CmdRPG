@@ -12,7 +12,8 @@ import uuid
 
 from .parser import ParseError, parse_line
 from .render import (inspect, render_actions, render_events, render_map,
-                     render_party, render_preview, render_view, render_result, render_growth_history)
+                     render_party, render_preview, render_view, render_result, render_growth_history,
+                     render_battle_report)
 from .transport import LocalTransport, TransportError
 from .menu import TerminalMenu
 
@@ -29,6 +30,7 @@ party / map              队伍资源 / 可见格图
 inspect E1 / inspect G6   可见角色 / 静态地形
 actions P1               角色能力、消耗和不可用原因
 growth / growth P1       全队 / 指定队员升级记录
+report                   本场战报：实际输出、治疗、命中与资源消耗（战后18号）
 preview move P2 G6       预览移动
 preview attack P1 E1     预览攻击
 preview cast P3 fire_bolt E1
@@ -328,12 +330,14 @@ class Client:
                 self._send_pending()
             elif kind == "resume":
                 self.refresh()
-            elif kind in ("party", "map", "inspect", "actions", "log", "growth"):
+            elif kind in ("party", "map", "inspect", "actions", "log", "growth", "report"):
                 self.refresh(display=False)
                 if kind == "party":
                     self.output(render_party(self.view))
                 elif kind == 'growth':
                     self.output(render_growth_history(self.view, value))
+                elif kind == 'report':
+                    self.output(render_battle_report(self.view))
                 elif kind == "map":
                     self.output(render_map(self.view, self.ui.selected))
                 elif kind == "inspect":
@@ -367,7 +371,7 @@ def install_completion(client):
         import readline
     except ImportError:
         return
-    commands = ["resume", "party", "growth", "inspect", "actions", "preview", "move", "attack", "cast",
+    commands = ["resume", "party", "growth", "report", "inspect", "actions", "preview", "move", "attack", "cast",
                 "ability", "dash", "disengage", "dodge", "help", "potion", "do", "end", "react",
                 "accept", "decline", "rest", "short", "retry", "resend", "log", "map", "quit"]
 

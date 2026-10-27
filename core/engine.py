@@ -11,6 +11,7 @@ from .advanced import AdvancedMixin
 from .campaign import CampaignMixin, load_campaign, COMMANDS as CAMPAIGN_COMMANDS, CONTENT_VERSION as CAMPAIGN_VERSION
 from .tactics import TacticsMixin, TACTICAL
 from .equipment import bonus as equipment_bonus
+from .battle_report import new_report, record as record_battle
 
 
 class GameError(Exception):
@@ -142,6 +143,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         # Stable ties: party first, then higher Dexterity, then actor ID.
         state["turn_order"] = sorted(state["actors"], key=lambda aid: (-initiatives[aid], state["actors"][aid]["side"] != "party", -state["actors"][aid]["stats"]["dex"], aid))
         state["initiative"] = initiatives
+        state['battle_report'] = new_report(a for a in state['actors'].values() if a['side'] == 'party')
         state["battle_snapshot"] = deepcopy(state)
         self._emit(state, "encounter", f"{state['encounter_name']}：{self.content['encounter']['description']}")
         self._advance(state)
@@ -152,13 +154,14 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         # HP, identity, or damage totals in the player's event stream.
         subject=state['actors'].get(text.split(' ',1)[0])
         if subject and subject['side']=='enemy' and not self._visible(state,subject): return
+        record_battle(state, kind, subject, details)
         for observed in state["actors"].values():
             if observed["side"] == "enemy" and self._visible(state, observed):
                 state.setdefault("last_seen", {})[observed["id"]] = {"id": observed["id"], "name": observed["name"], "position": observed["position"], "round": state["round"]}
         summary = state.setdefault("battle_summary", {"damage":0, "healing":0, "downed":0, "deaths":0, "slots":0, "potions":0})
-        if kind == "damage":
+        if kind == "damage" and state['phase'] == 'combat':
             summary["damage"] += details.get("applied_damage", 0)
-        elif kind == "heal":
+        elif kind == "heal" and state['phase'] == 'combat':
             summary["healing"] += details.get("actual_healing", 0)
         elif kind in ("downed", "death"):
             summary["downed" if kind == "downed" else "deaths"] += 1
@@ -262,6 +265,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             "round": state["round"], "active": self._active(state), "party": party, "enemies": enemies,
             "map": deepcopy(state["map"]), "pending": pending, "recent_events": deepcopy(state["event_log"][-6:]),
             "battle_summary": deepcopy(state.get("battle_summary", {})),
+            "battle_report": deepcopy(state.get('battle_report')),
             "campaign": self._campaign_view(state),
             "development": state.get("development",False), "outcome": state["outcome"], "content_version": state["content_version"], "rules_version": state["rules_version"],
             "encounter_name": state["encounter_name"], "short_rests": state["short_rests"],
@@ -872,12 +876,12 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                         actor["conditions"].append("dodge")
                     self._emit(work, "dodge", f"{actor['id']} 闪避，直到下次回合开始。")
                 elif kind == "help":
-                    self._heal(work, work["actors"][command["target"]], 1, "救助")
+                    self._heal(work, work["actors"][command["target"]], 1, "救助", source_actor=actor['id'])
                 elif kind == "potion":
                     work.setdefault("battle_summary", {}).setdefault("potions", 0)
                     work["battle_summary"]["potions"] += 1
                     amount, detail = dice.roll(work, "2d4+2")
-                    self._heal(work, actor, amount, "治疗药水", detail)
+                    self._heal(work, actor, amount, "治疗药水", detail, source_actor=actor['id'])
             self._outcome(work)
             self._advance(work)
         work["revision"] = state["revision"] + 1
@@ -900,7 +904,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             success = self._save(state, target, "dex", dc, "圣火术")
             if not success:
                 amount, detail = dice.roll(state, "2d8" if actor["level"]>=5 else "1d8")
-                self._damage(state, target, amount, "radiant", "圣火术", detail)
+                self._damage(state, target, amount, "radiant", "圣火术", detail, source_actor=actor['id'])
         elif effect in ("healing_word", "cure_wounds"):
             expression = f"{slot}d{4 if effect == 'healing_word' else 8}"
             amount, detail = dice.roll(state, expression)
@@ -909,11 +913,11 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             gear_healing = equipment_bonus(actor, self.content["items"], "healing_bonus")
             detail.update(spell_modifier=spell_bonus, life_domain=life_bonus, equipment_bonus=gear_healing)
             previous_hp = target['hp']
-            self._heal(state, target, amount + spell_bonus + life_bonus + gear_healing, self.content["abilities"][ability_id]["name"], detail)
+            self._heal(state, target, amount + spell_bonus + life_bonus + gear_healing, self.content["abilities"][ability_id]["name"], detail, source_actor=actor['id'])
             self._blessed_heal(state, actor, [target] if target['hp'] > previous_hp else [], slot)
         elif effect == "second_wind":
             amount, detail = dice.roll(state, f"1d10+{actor['level']}")
-            self._heal(state, actor, amount, "回气", detail)
+            self._heal(state, actor, amount, "回气", detail, source_actor=actor['id'])
         elif effect == "unarmed_strike":
             self._attack(state, actor, target, "1d6" if actor["level"]>=3 else "1d4", "bludgeoning", actor["attack_stat"])
         elif effect == "mage_armor":
@@ -971,18 +975,21 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         if bless:
             text += f" + 祝福 {bless}"
         text += f" 对 AC {target['ac']}，{'暴击' if critical else '命中' if hit else '未命中'}。"
-        self._emit(state, "attack", text, rolls=rolls, natural=natural, proficiency=prof, ability_modifier=ability_bonus, height_bonus=height, equipment_bonus=gear_attack, bless=bless, advantage=adv, disadvantage=dis, advantage_reasons=info["advantage_reasons"], disadvantage_reasons=info["disadvantage_reasons"], ac=target["ac"], hit=hit, critical=critical)
+        bless_changed = hit and natural not in (1, 20) and natural + bonus < target['ac']
+        if bless_changed:
+            text += '【祝福促成命中】'
+        self._emit(state, "attack", text, rolls=rolls, natural=natural, proficiency=prof, ability_modifier=ability_bonus, height_bonus=height, equipment_bonus=gear_attack, bless=bless, bless_changed=bless_changed, advantage=adv, disadvantage=dis, advantage_reasons=info["advantage_reasons"], disadvantage_reasons=info["disadvantage_reasons"], ac=target["ac"], hit=hit, critical=critical)
         if hit:
             amount, detail = dice.roll(state, expression, critical)
             extra = ability_bonus if damage_modifier is None else damage_modifier
             if weapon_attack: extra += equipment_bonus(attacker, self.content["items"], "damage_bonus")
             detail["ability_modifier"] = extra
-            self._damage(state, target, max(0, amount + extra), damage_type, "借机攻击" if reaction else "攻击", detail, critical)
+            self._damage(state, target, max(0, amount + extra), damage_type, "借机攻击" if reaction else "攻击", detail, critical, source_actor=attacker['id'])
             if weapon_attack and not reaction and 'divine_strike' in attacker.get('passives', []) and not attacker.get('divine_strike_used'):
                 attacker['divine_strike_used'] = True
                 if self._alive(target):
                     radiant, radiant_detail = dice.roll(state, '1d8', critical)
-                    self._damage(state, target, radiant, 'radiant', '神圣打击', radiant_detail, critical)
+                    self._damage(state, target, radiant, 'radiant', '神圣打击', radiant_detail, critical, source_actor=attacker['id'])
         return hit
 
     def _save_failure_probability(self, target, stat, dc):
@@ -1005,8 +1012,12 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         bonus = modifier(target["stats"][stat]) + prof + gear_save
         bless = dice.die(state, 4) if self._blessed(target) else 0
         success = natural + bonus + bless >= dc
+        bless_changed = success and natural + bonus < dc
         info = dict(advantage=advantage, advantage_reasons=["闪避使敏捷豁免获得优势"] if advantage else [])
-        self._emit(state, "save", f"{target['id']} {reason} {stat} 豁免：{dice.describe_d20(info, rolls, natural)}；加值 {bonus:+d} + 祝福 {bless} 对 DC {dc}，{'成功' if success else '失败'}。", rolls=rolls, natural=natural, modifier=bonus, proficiency=prof, equipment_bonus=gear_save, advantage=advantage, advantage_reasons=info["advantage_reasons"], bless=bless, dc=dc, success=success)
+        text = f"{target['id']} {reason} {stat} 豁免：{dice.describe_d20(info, rolls, natural)}；加值 {bonus:+d} + 祝福 {bless} 对 DC {dc}，{'成功' if success else '失败'}。"
+        if bless_changed:
+            text += '【祝福促成豁免成功】'
+        self._emit(state, "save", text, rolls=rolls, natural=natural, modifier=bonus, proficiency=prof, equipment_bonus=gear_save, advantage=advantage, advantage_reasons=info["advantage_reasons"], bless=bless, bless_changed=bless_changed, dc=dc, success=success)
         return success
 
     def _drop_concentration(self, state, actor, reason):
@@ -1027,7 +1038,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         actor["concentration"] = None
         self._emit(state, "concentration_end", f"{actor['id']} 【专注结束】{self.content['abilities'][ability]['name']}：{reason}；本次专注维持的效果已移除。", actor=actor['id'], ability=ability, reason=reason)
 
-    def _damage(self, state, target, amount, damage_type, source, detail=None, critical=False):
+    def _damage(self, state, target, amount, damage_type, source, detail=None, critical=False, *, source_actor=None):
         original = amount
         if damage_type in target.get("immunities", []):
             amount = 0
@@ -1046,7 +1057,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             target['hp'] = 1
             self._emit(state, 'effect', f"{target['id']} 死亡防护消耗：本次伤害后保留1生命。")
         damage_label = {"force":"力场", "fire":"火焰", "slashing":"挥砍", "piercing":"穿刺", "radiant":"光耀", "bludgeoning":"钝击"}.get(damage_type, damage_type)
-        self._emit(state, "damage", f"{target['id']} 受到 {source} 的 {amount} 点 {damage_label} 伤害（临时生命吸收 {temporary}），生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), raw_damage=original, applied_damage=amount, absorbed=temporary, damage_type=damage_type)
+        self._emit(state, "damage", f"{target['id']} 受到 {source} 的 {amount} 点 {damage_label} 伤害（临时生命吸收 {temporary}），生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), raw_damage=original, applied_damage=amount, absorbed=temporary, hp_lost=previous_hp-target['hp'], source_actor=source_actor, damage_type=damage_type)
         self._boss_transition(state, target)
         if target["hp"] == 0 and amount > 0:
             if target["side"] == "enemy":
@@ -1070,7 +1081,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             if not self._save(state, target, "con", max(10, amount // 2), "专注"):
                 self._drop_concentration(state, target, "受伤豁免失败")
 
-    def _heal(self, state, target, amount, source, detail=None):
+    def _heal(self, state, target, amount, source, detail=None, *, source_actor=None):
         if "dead" in target["conditions"]:
             return
         previous = target["hp"]
@@ -1082,7 +1093,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             target["death_success"] = target["death_failure"] = 0
         if target["hp"] == previous:
             return
-        self._emit(state, "heal", f"{target['id']} 获得 {source} 治疗 {target['hp'] - previous} 点，生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), rolled_healing=amount, actual_healing=target["hp"] - previous)
+        self._emit(state, "heal", f"{target['id']} 获得 {source} 治疗 {target['hp'] - previous} 点，生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), rolled_healing=amount, actual_healing=target["hp"] - previous, source_actor=source_actor)
 
     def _death_status(self, state, actor):
         if actor["death_failure"] >= 3:

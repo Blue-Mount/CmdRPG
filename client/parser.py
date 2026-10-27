@@ -125,7 +125,7 @@ def parse_line(line):
         if len(args) != 1 or args[0].lower() not in ("accept", "decline"):
             raise ParseError("格式：react accept 或 react decline。")
         return kind, args[0].lower()
-    if kind in ("resume", "party", "retry", "resend", "quit", "map") or (kind == "help" and not args):
+    if kind in ("resume", "party", "retry", "resend", "quit", "map", "report") or (kind == "help" and not args):
         if args:
             raise ParseError("%s 不接受额外参数。" % kind)
         return kind, None

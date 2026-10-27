@@ -8,6 +8,7 @@ tactical quality still require manual playtesting.
 import argparse
 import json
 from copy import deepcopy
+from itertools import combinations
 
 from core.engine import Engine, GameError
 from core import spatial
@@ -27,6 +28,7 @@ def move_for_attack(engine, state, view, actor, enemies, attack_range):
     goals = enemies or view.get('last_seen') or [{'position':'M10','id':'explore'}]
     if not enemies:
         attack_range = 0  # Explore to the goal; stopping a spell's range away reveals nothing.
+    measure = spatial.reach_distance if 0 < attack_range <= 1.5 else spatial.distance
     routes = spatial.paths(board, actor['position'], blocked | (set(board['hazards']) - {actor['position']}))
     for target in goals:
         for y in range(board['height']):
@@ -34,7 +36,7 @@ def move_for_attack(engine, state, view, actor, enemies, attack_range):
                 cell = spatial.label(x, y)
                 if cell in blocked or cell in board['hazards']:
                     continue
-                if spatial.distance(board, cell, target['position']) > attack_range or not spatial.line_of_sight(board, cell, target['position']):
+                if measure(board, cell, target['position']) > attack_range or not spatial.line_of_sight(board, cell, target['position']):
                     continue
                 # A safe destination can still have a hazardous shortest path.
                 # Route around known fire rather than repeatedly stopping at it.
@@ -57,7 +59,7 @@ def move_for_attack(engine, state, view, actor, enemies, attack_range):
     return command if legal(engine, state, command) else None
 
 
-def choose(engine, state):
+def choose(engine, state, *, support=False):
     view = engine.view(state)
     if view['pending']:
         return ('reaction', 'accept')
@@ -75,6 +77,19 @@ def choose(engine, state):
         commands.append({'type':'potion','actor':aid})
     if 'action_surge' in abilities and actor['budgets']['action']==0:
         commands.append({'type':'ability','actor':aid,'ability':'action_surge'})
+    if support:
+        # One explicit comparison policy, not a claim of optimal tactics. Use
+        # only observed allies/enemies and let normal previews reject costs.
+        if 'bless' in abilities and view['round'] == 1 and not actor['concentration']:
+            allies = sorted([a for a in view['party'] if a['hp'] > 0 and not a['effects'].get('bless')],
+                            key=lambda a: (a['template'] not in ('fighter', 'monk'), a['id']))
+            for count in (3, 2):
+                commands.extend({'type': 'cast', 'actor': aid, 'ability': 'bless', 'targets': list(group), 'slot': 1}
+                                for group in combinations([a['id'] for a in allies], count))
+        if 'stunning_strike' in abilities:
+            commands.extend({'type': 'ability', 'actor': aid, 'ability': 'stunning_strike', 'target': e['id']}
+                            for e in sorted(enemies, key=lambda e: (-e['hp'], e['id']))
+                            if e['hp'] >= 20 and 'stunned' not in e['conditions'])
     for enemy in enemies:
         if 'blight' in abilities and 'fire' in enemy.get('resistances', []):
             commands.append({'type':'cast','actor':aid,'ability':'blight','target':enemy['id']})
@@ -93,13 +108,17 @@ def choose(engine, state):
     for command in commands:
         if legal(engine, state, command):
             return ('command', command)
-    if actor['budgets']['action'] > 0:
+    if actor['budgets']['action'] > 0 or actor.get('combat_stats', {}).get('attacks_remaining', 0) > 0:
         attack_range = 18 if {'fire_bolt','sacred_flame'} & abilities.keys() else 1.5
         command = move_for_attack(engine, state, view, actor, enemies, attack_range)
         if command:
             return ('command', command)
         # A blocked corridor can be cleared by the front party member first.
     return ('command', {'type':'end','actor':aid})
+
+
+def choose_support(engine, state):
+    return choose(engine, state, support=True)
 
 
 def play(templates=None, seed=42, max_commands=600, on_step=None, level=1):

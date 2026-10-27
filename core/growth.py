@@ -679,18 +679,18 @@ class GrowthMixin:
                 a["conditions"].append("dodge")
         elif aid == "rally":
             if t["hp"] == 0:
-                self._heal(state, t, 1, "鼓舞起身")
+                self._heal(state, t, 1, "鼓舞起身", source_actor=a['id'])
             t["temp_hp"] = max(t["temp_hp"], 8)
             self._emit(state, "effect", f"{t['id']} 获得鼓舞，当前临时生命 {t['temp_hp']}（同类取较高值，不叠加）。")
         elif aid == "blight":
             amount, detail = dice.roll(state, "8d8")
-            self._save_damage(state, t, amount, "necrotic", "con", self._spell_dc(a), "枯萎术", detail)
+            self._save_damage(state, t, amount, "necrotic", "con", self._spell_dc(a), "枯萎术", detail, source_actor=a['id'])
         elif aid == "death_ward":
             t["effects"]["death_ward"] = {"source": a["id"]}
             self._emit(state, "effect", f"{t['id']} 获得死亡防护：本场首次被伤害降至0生命时改为1，随后消耗；同名不叠加。")
         elif aid == "preserve_life":
             for t in targets:
-                self._heal(state, t, 3 * a["level"], "维持生命")
+                self._heal(state, t, 3 * a["level"], "维持生命", source_actor=a['id'])
         elif aid == "aid":
             n = 5 * (slot - 1)
             for t in targets:
@@ -698,7 +698,7 @@ class GrowthMixin:
                 t["max_hp"] += delta
                 if delta:
                     t["effects"]["aid"] = {"source": a["id"], "amount": n}
-                self._heal(state, t, delta, "援助术")
+                self._heal(state, t, delta, "援助术", source_actor=a['id'])
         elif aid in ("mass_healing_word", "preserve_life", "aid"):
             from .equipment import bonus
             n, detail = dice.roll(state, f"{slot-2}d4")
@@ -711,6 +711,7 @@ class GrowthMixin:
                     n + mod(a["stats"]["wis"]) + 2 + slot + bonus(a, self.content["items"], "healing_bonus"),
                     "群体治愈真言",
                     detail,
+                    source_actor=a['id'],
                 )
                 if t['hp'] > previous_hp:
                     healed.append(t)

@@ -36,6 +36,33 @@ def render_cost(cost):
                     for key, value in cost.items()) or "无"
 
 
+def render_battle_report(view, detailed=True):
+    report = view.get('battle_report')
+    if not report:
+        return '本场为旧存档，未记录分项战报；下一场战斗起提供完整统计。'
+    heading = '本场战报' if view.get('phase') != 'combat' else '本场战报（进行中）'
+    lines = ['%s：%s回合；敌方损失生命 %s，我方损失生命 %s；临时生命吸收 %s，实际治疗 %s；倒地 %s次，死亡 %s。' % (
+        heading, report['rounds'], report['enemy_hp_lost'], report['party_hp_lost'],
+        report['absorbed'], report['healing'], report['downed'], report['deaths'])]
+    if detailed:
+        support = report.get('support')
+        if support is not None:
+            lines.append('辅助收益：祝福促成命中 %s次、豁免成功 %s次；震慑阻止敌方回合 %s次、使敌方豁免自动失败 %s次。' % (
+                support['bless_hits'], support['bless_saves'], support['stunned_turns'], support['automatic_failures']))
+        else:
+            lines.append('本场尚未记录辅助收益，下一场起提供分项统计。')
+        for actor in view.get('party', []):
+            row = report['members'][actor['id']]
+            hit = '%s/%s' % (row['hits'], row['attacks']) if row['attacks'] else '无攻击掷骰'
+            lines.append('%s %s：对敌有效伤害 %s，实际治疗 %s，损失生命 %s，临时生命吸收 %s；命中 %s，暴击 %s，倒地 %s次。' % (
+                actor['id'], actor['name'], row['damage'], row['healing'], row['taken'], row['absorbed'],
+                hit, row['criticals'], row['downed']))
+            lines.append('  消耗：' + render_cost(row['costs']))
+        lines.append('仅统计已观察到的战斗事件；伤害按实际扣血，治疗不含溢出与战后休整。命中只统计攻击掷骰，不含飞弹与豁免法术；环境伤害不归属队员输出。')
+        lines.append('祝福仅在本次骰子缺少其加值就会失败时记功；震慑按实际跳过的敌方回合计数，不估算免伤。')
+    return '\n'.join(lines)
+
+
 def _actors(view):
     return view.get("party", []) + view.get("enemies", [])
 

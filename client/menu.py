@@ -6,7 +6,8 @@ import re
 from .parser import ParseError
 from .render import (render_map, render_menu_actions, render_options,
                      render_party, render_preview, render_rules, render_growth,
-                     render_actor_card, render_action_card, temporary_hp_text, render_growth_history)
+                     render_actor_card, render_action_card, temporary_hp_text, render_growth_history,
+                     render_battle_report)
 
 
 class TerminalMenu:
@@ -74,6 +75,7 @@ class TerminalMenu:
             if client.view.get("development"): menu["11"]=("practice",None)
             menu['12'] = ('campaign_new', None)
             menu['17'] = ('read', 'growth')
+            menu['18'] = ('read', 'report')
             campaign = client.view.get('campaign')
             if campaign:
                 menu.update({str(n): ('campaign_command', ({'type': 'travel', 'destination': route['id']}, route['name']))
@@ -143,7 +145,9 @@ class TerminalMenu:
             else:
                 lines.append('战斗结果：胜利。')
             summary = client.view.get("battle_summary", {})
-            if summary:
+            if client.view.get('battle_report'):
+                lines.append(render_battle_report(client.view, detailed=False))
+            elif summary:
                 lines.append("本场摘要：%s 回合；倒地 %s 次，死亡 %s；消耗法术位 %s、药水 %s；双方累计伤害 %s、治疗 %s。" % (client.view.get("round", "?"), summary.get("downed", 0), summary.get("deaths", 0), summary.get("slots", 0), summary.get("potions", 0), summary.get("damage", 0), summary.get("healing", 0)))
             remaining = client.view.get("short_rests", 0)
             lines.append("1 全队短休（剩余 %s 次%s）" % (
@@ -159,6 +163,7 @@ class TerminalMenu:
                 elif kind == 'shop_party':
                     lines.append(n + ' 营地商店（药水与装备）')
             lines.append('17 查看全队升级记录')
+            lines.append('18 查看本场战报（队员输出、治疗、命中与资源消耗）')
             if not campaign:
                 lines.append((client.view.get("settlement") or {}).get("loot_description", "本场没有可拾取战利品，暂时无法搜刮遗体。"))
         elif self.stage == 'shop_party':
@@ -411,6 +416,8 @@ class TerminalMenu:
                 self.client.output(render_party(self.client.view))
             elif value == 'growth':
                 self.client.output(render_growth_history(self.client.view))
+            elif value == 'report':
+                self.client.output(render_battle_report(self.client.view))
             elif value == "log":
                 self.client._log(10)
             elif value == "rules":

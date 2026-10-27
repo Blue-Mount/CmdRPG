@@ -136,7 +136,7 @@ class TacticsMixin:
             amount, detail = dice.roll(state, f"{8 + command['slot'] - 3}d6")
             for target in self._burst_targets(state, centre):
                 if not self._sculpted(actor, target):
-                    self._save_damage(state, target, amount, 'fire', 'dex', self._spell_dc(actor), '火球术', detail)
+                    self._save_damage(state, target, amount, 'fire', 'dex', self._spell_dc(actor), '火球术', detail, source_actor=actor['id'])
             return
         count = 1 if ability_id == "stunning_strike" else command["slot"] + (2 if ability_id == "magic_missile" else 1)
         ids = command.get("targets", [command.get("target")] * count)
@@ -148,7 +148,7 @@ class TacticsMixin:
             self._emit(state, "attack_segment", f"{actor['id']} 第{index}/{count}段 → {tid}。", index=index, target=tid)
             if ability_id == "magic_missile":
                 amount, detail = dice.roll(state, "1d4+1")
-                self._damage(state, target, amount, "force", f"魔法飞弹 {index}", detail)
+                self._damage(state, target, amount, "force", f"魔法飞弹 {index}", detail, source_actor=actor['id'])
             elif ability_id == "scorching_ray":
                 self._attack(state, actor, target, "2d6", "fire", actor["spell_stat"], ranged=True, damage_modifier=0)
             else:
@@ -160,7 +160,7 @@ class TacticsMixin:
                 hit = self._weapon_attack(state, actor, target)
                 if hit:
                     actor["resources"]["ki"] -= 1
-                    self._emit(state, "resource", f"{actor['id']} 震慑拳命中：气 -1，剩余 {actor['resources']['ki']}。")
+                    self._emit(state, "resource", f"{actor['id']} 震慑拳命中：气 -1，剩余 {actor['resources']['ki']}。", cost={'ki': 1})
                     dc = 8 + proficiency(actor) + mod(actor["stats"]["wis"])
                     if target["hp"] > 0 and not self._save(state, target, "con", dc, "震慑拳"):
                         target["effects"].setdefault("stunned", {})[actor["id"]] = state["round"] + 1

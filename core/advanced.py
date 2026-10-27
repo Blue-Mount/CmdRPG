@@ -4,17 +4,17 @@ from . import dice, spatial
 
 
 class AdvancedMixin:
-    def _save_damage(self, state, target, amount, damage_type, stat, dc, source, detail=None):
+    def _save_damage(self, state, target, amount, damage_type, stat, dc, source, detail=None, *, source_actor=None):
         success = self._save(state, target, stat, dc, source)
         evasion = stat == 'dex' and 'evasion' in target.get('passives', []) and self._alive(target) and 'stunned' not in target['conditions']
         dealt = (0 if success else amount // 2) if evasion else (amount // 2 if success else amount)
         if evasion:
             self._emit(state, 'effect', f"{target['id']} 闪避：敏捷豁免成功免伤，失败伤害减半。")
-        self._damage(state, target, dealt, damage_type, source, detail)
+        self._damage(state, target, dealt, damage_type, source, detail, source_actor=source_actor)
 
     def _blessed_heal(self, state, actor, targets, slot):
         if 'blessed_healer' in actor.get('passives', []) and any(t['id'] != actor['id'] for t in targets):
-            self._heal(state, actor, 2 + slot, '受祝福的医者')
+            self._heal(state, actor, 2 + slot, '受祝福的医者', source_actor=actor['id'])
 
     def _boss_transition(self, state, actor):
         config = actor.get('boss')
