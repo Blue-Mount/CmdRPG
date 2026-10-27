@@ -5,7 +5,7 @@ from copy import deepcopy
 from .growth import PROF, mod, proficiency, recalculate
 
 
-BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus"}
+BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus", "ki_bonus"}
 
 
 def bonus(actor, items, field):
@@ -24,7 +24,7 @@ def stats(actor, items):
     category = weapon.get("category", "martial" if actor["weapon"] == "longsword" else "simple")
     trained = actor["weapon"] == "monk_fists" or weapon.get("base_weapon", actor["weapon"]) in PROF[actor["template"]] or category in PROF[actor["template"]]
     modifier = mod(actor["stats"][actor["attack_stat"]])
-    eq = actor["equipment"]
+    eq = actor.get("equipment", {})
     untrained_armor = any(items.get(eq.get(slot), {}).get("category") not in PROF[actor["template"]]
                           for slot in ("armor", "off_hand") if eq.get(slot))
     martial = actor["template"] == "monk" and not eq.get("armor") and not eq.get("off_hand") and category == 'simple'
@@ -60,6 +60,8 @@ def compare(actor, item_id, slot, items):
         warnings.append("武器未熟练：命中不加熟练加值。")
     if not after["casting_allowed"]:
         warnings.append("护甲或盾牌未熟练：攻击劣势且禁止施法。")
+    if items.get(item_id, {}).get('ki_bonus'):
+        warnings.append('仅武僧的气点上限提高；穿戴不补气，短休或营地恢复后可用。')
     if before["martial_arts"] and not after["martial_arts"]:
         warnings.append("武器或护甲配置使武艺不可用；穿甲或持盾还会失去无甲防御与无甲移动收益。")
     return dict(before=before, after=after, warnings=warnings,

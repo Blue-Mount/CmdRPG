@@ -22,7 +22,7 @@ def settle(engine, state):
 def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
     engine = Engine()
     state = engine.new_run(seed=42, campaign=True)
-    for stage, node in enumerate(['outpost', route, 'gate', 'forge', 'heart'], 1):
+    for stage, node in enumerate(['outpost', route, 'gate', 'forge', 'crossfire', 'crucible', 'heart'], 1):
         assert state['campaign']['node'] == node
         party = [a for a in state['actors'].values() if a['side'] == 'party']
         for actor in party:
@@ -32,8 +32,8 @@ def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
             actor['resources']['potions'] = 1
         before = deepcopy(state)
         settle(engine, state)
-        level = [2,4,6,8,8][stage - 1]
-        assert state['campaign']['gold'] == before['campaign']['gold'] + 60 + 20 * stage
+        level = [2,4,6,8,8,8,8][stage - 1]
+        assert state['campaign']['gold'] == before['campaign']['gold'] + [80,100,120,140,160,180,160][stage - 1]
         assert engine.view(state)['settlement']['loot_available'] is False
         for aid in ['P1', 'P2', 'P3', 'P4']:
             actor, old = state['actors'][aid], before['actors'][aid]
@@ -69,7 +69,7 @@ def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
         settled = deepcopy(state)
         engine._campaign_reward(state)
         assert state == settled
-        if stage < 5:
+        if stage < 7:
             state, _ = engine.execute(state, {'type': 'camp'})
             destination = route if stage == 1 else engine.view(state)['campaign']['routes'][0]['id']
             state, _ = engine.execute(state, {'type': 'travel', 'destination': destination})

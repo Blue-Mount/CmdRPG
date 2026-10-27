@@ -84,12 +84,14 @@ class TacticsMixin:
             self._in_range(state, actor, target, ability["range"])
         result.update(targets=list(dict.fromkeys(ids)), attack_count=count, allocations=[])
         for index, target in enumerate(targets, 1):
+            roll_info = None
             if ability_id == "magic_missile":
                 probability = 1.0
                 expression = "1d4+1"
             else:
                 ranged = ability_id == "scorching_ray"
                 adv, dis, height = self._attack_context(state, actor, target, ranged)
+                roll_info = self._attack_roll_info(state, actor, target, ranged)
                 stat = actor["spell_stat"] if ranged else actor["attack_stat"]
                 attack_bonus = self._spell_attack(actor) if ranged else self._weapon_proficiency(actor) + mod(actor["stats"][stat]) + bonus(actor, self.content["items"], "attack_bonus")
                 probability = dice.hit_probability(attack_bonus + height, target["ac"], adv, dis, self._blessed(actor))
@@ -100,8 +102,12 @@ class TacticsMixin:
             damage_type = 'force' if ability_id == 'magic_missile' else 'fire' if ability_id == 'scorching_ray' else self.content['items'][actor['weapon']]['damage_type']
             result["allocations"].append(dict(index=index, target=target["id"], hit_probability=probability, damage_dice=expression, damage_bonus=damage_bonus,
                                               resistant=damage_type in target.get('resistances', [])))
+            if roll_info is not None:
+                result["allocations"][-1]["attack_roll"] = roll_info
         if len(set(ids)) == 1:
             result["hit_probability"] = result["allocations"][0]["hit_probability"]
+            if "attack_roll" in result["allocations"][0]:
+                result["attack_roll"] = deepcopy(result["allocations"][0]["attack_roll"])
         if ability_id == "stunning_strike":
             dc = 8 + proficiency(actor) + mod(actor["stats"]["wis"])
             result.update(save_dc=dc, failure_probability=self._save_failure_probability(targets[0], "con", dc), conditional_cost={"ki_on_hit": 1})

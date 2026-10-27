@@ -1,4 +1,4 @@
-"""A five-battle expedition, using the same combat and atomic command pipeline."""
+"""Versioned expeditions using the same combat and atomic command pipeline."""
 
 from copy import deepcopy
 import json
@@ -9,7 +9,7 @@ from .growth import snapshot, recalculate
 
 
 COMMANDS = {"travel", "camp", "buy"}
-CONTENT_VERSION = '0.5.0-campaign'
+CONTENT_VERSION = '0.6.0-campaign'
 
 
 def load_campaign(path=None):
@@ -24,31 +24,38 @@ def load_campaign(path=None):
     if not data.get('shop') or any(k not in items or type(v) is not int or v <= 0 for k, v in data['shop'].items()):
         raise ValueError('campaign: invalid shop')
     data.setdefault('shop_unlocks', {key: 1 for key in data['shop']})
-    if not isinstance(data['shop_unlocks'], dict) or set(data['shop_unlocks']) != set(data['shop']) or any(type(v) is not int or not 1 <= v <= 5 for v in data['shop_unlocks'].values()):
+    if not isinstance(data['shop_unlocks'], dict) or set(data['shop_unlocks']) != set(data['shop']) or any(type(v) is not int or not 1 <= v <= 7 for v in data['shop_unlocks'].values()):
         raise ValueError('campaign: invalid shop unlocks')
-    nodes = data['nodes']
+    _validate_nodes(data['nodes'], data['start'], base, items, DATA, 7)
+    _validate_nodes(data.get('legacy_nodes', {}), data['start'], base, items, DATA, 5)
+    return data
+
+
+def _validate_nodes(nodes, start, base, items, growth, total):
+    if not nodes or start not in nodes:
+        raise ValueError('campaign: missing entry')
     for key, node in nodes.items():
-        if type(node.get('stage')) is not int or not 1 <= node['stage'] <= 5:
+        if type(node.get('stage')) is not int or not 1 <= node['stage'] <= total:
             raise ValueError('campaign: invalid stage')
         if type(node.get('gold')) is not int or node['gold'] < 0 or not node.get('name'):
             raise ValueError('campaign: invalid reward/name')
         if type(node.get('reward_level')) is not int or not 1 <= node['reward_level'] <= 8:
             raise ValueError('campaign: invalid reward level')
-        if 'equipment_reward' in node and (not isinstance(node['equipment_reward'], dict) or set(node['equipment_reward']) != set(DATA['classes']) or
+        if 'equipment_reward' in node and (not isinstance(node['equipment_reward'], dict) or set(node['equipment_reward']) != set(growth['classes']) or
                 any(not isinstance(v, str) or v not in items or items[v]['kind'] == 'potion' for v in node['equipment_reward'].values())):
             raise ValueError('campaign: invalid equipment reward')
         if not isinstance(node.get('next'), list) or len(set(node['next'])) != len(node['next']):
             raise ValueError('campaign: duplicate or invalid route')
         if any(n not in nodes or nodes[n]['stage'] != node['stage'] + 1 for n in node['next']):
             raise ValueError('campaign: routes must advance exactly one stage')
-        if (node['stage'] == 5) != (not node['next']):
-            raise ValueError('campaign: only stage five is terminal')
+        if (node['stage'] == total) != (not node['next']):
+            raise ValueError('campaign: invalid terminal stage')
         pack = deepcopy(base)
         pack.update(map=deepcopy(node['map']), encounter=deepcopy(node['encounter']), enemies=deepcopy(node['prototypes']))
         _validate(pack)  # Includes safe paths, geometry, unique spawns and enemy mechanics.
-    if nodes[data['start']]['stage'] != 1:
+    if nodes[start]['stage'] != 1:
         raise ValueError('campaign: entry must be level one')
-    reached, pending = set(), [data['start']]
+    reached, pending = set(), [start]
     while pending:
         key = pending.pop()
         if key not in reached:
@@ -56,34 +63,39 @@ def load_campaign(path=None):
             pending.extend(nodes[key]['next'])
     if reached != set(nodes):
         raise ValueError('campaign: unreachable content')
-    return data
 
 
 class CampaignMixin:
+    def _campaign_nodes(self, state=None):
+        if state is not None and state.get('campaign', {}).get('edition', 1) == 1:
+            return self.campaign_content['legacy_nodes']
+        return self.campaign_content['nodes']
+
     def _shop_stock(self, state):
-        stage = self.campaign_content['nodes'][state['campaign']['node']]['stage']
+        stage = self._campaign_nodes(state)[state['campaign']['node']]['stage']
         return {k: v for k, v in self.campaign_content['shop'].items()
                 if self.campaign_content['shop_unlocks'][k] <= stage}
 
-    def _campaign_pack(self, node):
+    def _campaign_pack(self, node, state=None):
         pack = load_content()
-        entry = self.campaign_content['nodes'][node]
+        entry = self._campaign_nodes(state)[node]
         pack.update(map=deepcopy(entry['map']), encounter=deepcopy(entry['encounter']), enemies=deepcopy(entry['prototypes']))
         return pack
 
     def _new_campaign(self, name, templates, seed):
         from .engine import Engine
         start = self.campaign_content['start']
-        progress = dict(version=1, node=start, cleared=[], camped=[], gold=40, unlocked_level=1, completed=False)
+        progress = dict(version=1, edition=2, node=start, cleared=[], camped=[], gold=40, unlocked_level=1, completed=False)
         return Engine(self._campaign_pack(start)).new_run(name, templates, seed, _carry={'campaign': progress})
 
     def _campaign_view(self, state):
         if not state.get('campaign'):
             return None
         progress = deepcopy(state['campaign'])
-        node = self.campaign_content['nodes'][progress['node']]
-        progress.update(name=self.campaign_content['name'], encounter=node['name'], stage=node['stage'], total=5,
-                        routes=[{'id': key, 'name': self.campaign_content['nodes'][key]['name']}
+        nodes = self._campaign_nodes(state)
+        node = nodes[progress['node']]
+        progress.update(name=self.campaign_content['name'], encounter=node['name'], stage=node['stage'], total=max(n['stage'] for n in nodes.values()),
+                        routes=[{'id': key, 'name': nodes[key]['name']}
                                 for key in node['next']] if state['phase'] == 'victory' and not progress['completed'] else [],
                         shop=[dict(id=k, name=self.content['items'][k]['name'], price=v,
                                    description=self.content['items'][k].get('description', ''))
@@ -95,7 +107,7 @@ class CampaignMixin:
         key = progress['node']
         if key in progress['cleared']:
             return
-        node = self.campaign_content['nodes'][key]
+        node = self._campaign_nodes(state)[key]
         progress['cleared'].append(key)
         progress['gold'] += node['gold']
         progress['unlocked_level'] = max(progress['unlocked_level'], node['reward_level'])
@@ -115,13 +127,13 @@ class CampaignMixin:
                     self._emit(state, 'equipment_reward', f"{actor['id']} 获得战斗奖励：{self.content['items'][item]['name']}，已收入背包；可比较后穿戴。", actor=actor['id'], item=item)
         if not node['next']:
             progress['completed'] = True
-            self._emit(state, 'campaign_complete', '烬王倒下，裂隙关闭。五站远征通关！可以保留结局或新开战役。')
+            self._emit(state, 'campaign_complete', '烬王倒下，裂隙关闭。远征通关！可以保留结局或新开战役。')
 
     def _campaign_settlement(self, state):
         if state['phase'] != 'victory':
             return None
         progress = state['campaign']
-        node = self.campaign_content['nodes'][progress['node']]
+        node = self._campaign_nodes(state)[progress['node']]
         equipment = '、'.join(self.content['items'][v]['name'] for v in node.get('equipment_reward', {}).values())
         return dict(completed=progress['completed'], next_encounter=list(node['next']), loot_available=False,
                     loot_description=f"本场奖励{node['gold']}金币，已自动收入队伍钱袋；无需搜刮尸体。全队等级{progress['unlocked_level']}。" +
@@ -141,12 +153,13 @@ class CampaignMixin:
         cost, warnings = {}, []
         if kind == 'travel':
             destination = command['destination']
-            node = self.campaign_content['nodes'][progress['node']]
+            nodes = self._campaign_nodes(state)
+            node = nodes[progress['node']]
             if progress['completed'] or not isinstance(destination, str) or destination not in node['next']:
                 fail('请选择当前路线上的下一站。')
             if any(a['side'] == 'party' and a['hp'] <= 0 for a in state['actors'].values()):
                 fail('仍有倒地或死亡队员，请先到营地复苏，或短休救起倒地队员。')
-            description = '前往' + self.campaign_content['nodes'][destination]['name'] + '；携带现有装备、准备法术、生命、药水与剩余资源。'
+            description = '前往' + nodes[destination]['name'] + '；携带现有装备、准备法术、生命、药水与剩余资源。'
             warnings.append('进入后不能返回商店；检查生命与法术位，必要时先营地休整。')
         elif kind == 'camp':
             if progress['node'] in progress['camped'] or progress['completed']:
@@ -199,17 +212,19 @@ class CampaignMixin:
             party = {}
             for aid, actor in work['actors'].items():
                 if actor['side'] == 'party':
+                    self._drop_concentration(work, actor, '进入下一场战斗')
                     self._clear_battle_effects(actor)
                     party[aid] = actor
             carry = {k: work[k] for k in ('id', 'campaign', 'event_log', 'event_seq', 'short_rests')}
             carry['party'] = party
-            work = Engine(self._campaign_pack(destination)).new_run(work['name'],
+            work = Engine(self._campaign_pack(destination, state)).new_run(work['name'],
                 [party[f'P{i}']['template'] for i in range(1, 5)], work['rng_state'], _carry=carry)
         elif kind == 'camp':
             progress['camped'].append(progress['node'])
             work['short_rests'] = 2
             for actor in work['actors'].values():
                 if actor['side'] == 'party':
+                    self._drop_concentration(work, actor, '营地休整')
                     self._clear_battle_effects(actor)
                     actor.update(hp=actor['max_hp'], conditions=[], death_success=0, death_failure=0,
                                  slots=deepcopy(actor['max_slots']))

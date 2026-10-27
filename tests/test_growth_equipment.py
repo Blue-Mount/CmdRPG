@@ -467,7 +467,7 @@ def test_old_save_read_only_adapter_and_explicit_atomic_upgrade(tmp_path):
     assert repo._load(rid) == before
     receipt = repo.submit(rid, "upgrade", 0, command)
     assert receipt["view"]["party"][0]["level"] == 2
-    assert repo._load(rid)["content_version"] == "0.5.0-m5"
+    assert repo._load(rid)["content_version"] == "0.6.0-m6"
     repo.close()
     repo = Repository(db)
     assert repo.submit(rid, "upgrade", 0, command) == receipt

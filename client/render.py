@@ -4,6 +4,8 @@ import json
 import re
 import unicodedata
 
+from core.dice import describe_d20
+
 
 PHASES = {"combat": "战斗", "player": "玩家行动", "reaction": "等待反应",
           "reaction_wait": "等待反应", "victory": "胜利", "defeat": "战败",
@@ -130,6 +132,7 @@ def render_growth(actor):
     lines.append('growth %s 查看完整升级记录。' % actor.get('id', 'P1'))
     lines.append('属性：'+'，'.join(stats.get(k,k)+' '+str(v) for k,v in actor.get('stats',{}).items()))
     lines.append('装备：'+'，'.join(slots.get(k,k)+' '+v for k,v in actor.get('equipment_names',{}).items()))
+    lines.extend(_combat_lines(actor))
     lines.append('法术位：'+render_cost({'slot_'+k:v for k,v in actor.get('slots',{}).items()}))
     lines.append('职业资源：'+render_cost(actor.get('resources',{})))
     passives = {'evasion':'闪避：敏捷半伤豁免成功免伤，失败减半（失能时无效）',
@@ -140,6 +143,39 @@ def render_growth(actor):
     lines.append('已准备：'+'、'.join(names.get(x,x) for x in actor.get('prepared',[])))
     if actor.get('always_prepared'): lines.append('领域恒定准备：'+'、'.join(names.get(x,x) for x in actor['always_prepared']))
     return '\n'.join(lines)
+
+
+def _combat_lines(actor):
+    combat = actor.get('combat_stats')
+    if not combat:
+        return []
+    names = {'simple':'简易武器', 'martial':'军用武器', 'dagger':'匕首', 'staff':'木杖',
+             'light':'轻甲', 'medium':'中甲', 'heavy':'重甲', 'shield':'盾牌'}
+    trained = combat['proficiencies']
+    lines = ['战斗：AC %s · 武器命中 %+d · 每动作%s击 · 当前剩余%s击' % (
+        combat['ac'], combat['attack_bonus'], combat['attacks_per_action'], combat['attacks_remaining']),
+        '移动：剩余%s米 / 速度%s米' % (_number(actor.get('budgets', {}).get('movement', 0)), _number(combat['speed'])),
+        '熟练：' + '、'.join(names.get(k,k) for k in trained) + '；盾牌熟练：' + ('有' if 'shield' in trained else '无')]
+    if actor.get('template') == 'monk':
+        lines.append('徒手命中 %+d（不含武器专属加值）；气点 %s/%s' % (
+            combat['unarmed_attack_bonus'], actor.get('resources', {}).get('ki', 0), actor.get('max_resources', {}).get('ki', 0)))
+    if combat['spell_attack'] is not None:
+        lines.append('法术：攻击 %+d · 豁免DC %s' % (combat['spell_attack'], combat['spell_dc']))
+    if actor.get('slots'):
+        lines.append('法术位：' + '、'.join('%s环 %s/%s' % (k,v,actor.get('max_slots',{}).get(k,v)) for k,v in actor['slots'].items()))
+    if not combat['casting_allowed']:
+        lines.append('装备限制：护甲或盾牌未熟练，攻击劣势且禁止施法。')
+    bless = actor.get('effects', {}).get('bless')
+    if bless:
+        durations = bless.get('durations', {})
+        lines.append('祝福：攻击/豁免+1d4；' + '、'.join('%s剩余%s回合' % (s,n) for s,n in durations.items()))
+    concentration = actor.get('concentration')
+    if concentration:
+        lines.append('专注：%s，剩余%s回合' % (concentration.get('name', concentration['ability']), concentration['remaining']))
+    elif actor.get('last_concentration_end'):
+        ended = actor['last_concentration_end']
+        lines.append('最近专注结束：%s · %s（第%s回合）' % (ended['name'], ended['reason'], ended['round']))
+    return lines
 
 
 def render_growth_history(view, actor_id=None):
@@ -164,7 +200,7 @@ def render_party(view):
 
 def render_event_summary(events, limit=6):
     """Keep casualties, danger and outcomes ahead of routine dice chatter."""
-    important = {"victory", "defeated", "downed", "death", "reaction", "campaign_reward", "campaign_complete"}
+    important = {"victory", "defeated", "downed", "death", "reaction", "campaign_reward", "campaign_complete", "concentration_end"}
     ranked = sorted(enumerate(events), key=lambda pair: (pair[1].get("kind") in important, pair[0]), reverse=True)
     chosen = sorted(ranked[:limit])
     result = render_events([event for _, event in chosen])
@@ -187,6 +223,9 @@ def render_events(events, detailed=False):
 def render_result(events, before=None, after=None, detailed=False):
     """Keep every acknowledged event in order, then show actual resource changes."""
     lines = ["真实结算（已执行并保存）", render_events(events, detailed=detailed)]
+    interruptions = [e['text'] for e in events if e.get('kind') == 'concentration_end']
+    if interruptions:
+        lines.insert(1, '专注变化：' + '\n'.join(interruptions))
     old_party = {a["id"]: a for a in (before or {}).get("party", [])}
     for actor in (after or {}).get("party", []):
         old = old_party.get(actor["id"])
@@ -215,6 +254,7 @@ def render_actor_card(actor):
         "动作 %s · 附赠 %s · 反应 %s · 移动 %s米" % (
             budgets.get("action", 0), budgets.get("bonus", 0), budgets.get("reaction", 0),
             _number(budgets.get("movement", 0)))]
+    lines.extend(_combat_lines(actor))
     common = [entry.get("name", "") for entry in actor.get("menu_actions", [])
               if entry.get("command", {}).get("type") in ("move", "attack", "end")
               or (entry.get("command", {}).get("ability") and not any(
@@ -315,6 +355,8 @@ def render_preview(number, preview, revision, view=None):
             lines.append(result)
     if "hit_probability" in preview:
         lines.append("命中率：%.1f%%" % (100 * preview["hit_probability"]))
+    if "attack_roll" in preview:
+        lines.append("攻击检定：" + describe_d20(preview["attack_roll"]))
     if "failure_probability" in preview:
         lines.append("目标豁免失败概率：%.1f%%（DC %s）" % (100 * preview["failure_probability"], preview.get("save_dc", "?")))
     if "attack_count" in preview:
@@ -323,6 +365,8 @@ def render_preview(number, preview, revision, view=None):
         lines.append('爆心：%s；半径 %s 米；伤害 %s。' % (preview['centre'], preview['radius'], preview['damage_dice']))
     for allocation in preview.get('allocations', []):
         lines.append('第%s段 → %s：命中 %.1f%%；伤害 %s%+d%s。' % (allocation['index'], _actor_name(view, allocation['target']), 100 * allocation['hit_probability'], allocation['damage_dice'], allocation.get('damage_bonus', 0), '；目标抗性使伤害减半' if allocation.get('resistant') else ''))
+        if "attack_roll" in allocation and "attack_roll" not in preview:
+            lines.append('  检定：' + describe_d20(allocation["attack_roll"]))
     if preview.get('conditional_cost'):
         lines.append('条件消耗：命中时气 -1，未命中不消耗气。')
     comparison = preview.get('equipment_comparison')
@@ -332,11 +376,23 @@ def render_preview(number, preview, revision, view=None):
                   'ac':'AC', 'speed':'移动米', 'spell_attack':'法术攻击', 'spell_dc':'法术DC',
                   'healing_bonus':'装备法术治疗加值', 'save_bonus':'装备属性豁免加值', 'weapon_proficient':'武器熟练', 'two_handed':'双手占位',
                   'martial_arts':'无甲武艺', 'casting_allowed':'允许施法', 'attack_disadvantage':'护甲不熟练攻击劣势', 'resources':'职业资源上限'}
+        changes = []
+        for field, label in labels.items():
+            before, after = comparison['before'][field], comparison['after'][field]
+            if type(before) in (int,float) and type(after) in (int,float) and before != after:
+                changes.append('%s %+g' % (label, after-before))
+            elif field == 'resources':
+                for key in set(before) | set(after):
+                    delta = after.get(key,0) - before.get(key,0)
+                    if delta: changes.append('%s上限 %+g' % (_cost_name(key), delta))
+        if changes:
+            lines.append('变化摘要：' + '；'.join(changes))
         for field, label in labels.items():
             before, after = comparison['before'][field], comparison['after'][field]
             if before is not None or after is not None:
                 display = lambda value: ('是' if value else '否') if isinstance(value, bool) else render_cost(value) if isinstance(value, dict) else value
-                lines.append('  %s：%s → %s' % (label, display(before), display(after)))
+                delta = ('（%+g）' % (after - before)) if type(before) in (int,float) and type(after) in (int,float) and after != before else ''
+                lines.append('  %s：%s → %s%s' % (label, display(before), display(after), delta))
         lines.append('特效：' + comparison['effect'])
     for save in preview.get("saves", []):
         if "failure_probability" in save:
@@ -462,6 +518,8 @@ def render_options(entries, compact=False):
             failure = preview.get("failure_probability", entry.get("failure_probability"))
             if probability is not None:
                 parts.append("命中率 %.1f%%" % (probability * 100))
+                if "attack_roll" in preview:
+                    parts.append(describe_d20(preview["attack_roll"]))
             elif failure is not None:
                 parts.append("豁免失败 %.1f%%" % (failure * 100))
             parts.append("本回合可达" if entry.get("destination") else "可选")

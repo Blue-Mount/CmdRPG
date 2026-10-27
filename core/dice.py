@@ -39,6 +39,25 @@ def d20(state, advantage=False, disadvantage=False):
     return result, rolls
 
 
+def describe_d20(info, rolls=None, natural=None):
+    """Explain a preview or an already resolved roll without rolling again."""
+    adv, dis = info.get("advantage", False), info.get("disadvantage", False)
+    if adv and dis:
+        label, rule, selected = "优势与劣势抵消", "掷1次d20", "取"
+    elif adv:
+        label, rule, selected = "优势", "掷2次d20取高", "取高"
+    elif dis:
+        label, rule, selected = "劣势", "掷2次d20取低", "取低"
+    else:
+        label, rule, selected = "普通掷骰", "掷1次d20", "取"
+    text = f"{label}（{rule}）" if rolls is None else f"{label}：d20 {rolls}，{selected} {natural}"
+    reasons = []
+    for key, name in (("advantage_reasons", "优势来源"), ("disadvantage_reasons", "劣势来源")):
+        if info.get(key):
+            reasons.append(name + "：" + "、".join(info[key]))
+    return text + ("；" + "；".join(reasons) if reasons else "")
+
+
 def hit_probability(bonus, ac, advantage=False, disadvantage=False, bless=False):
     totals = [bonus + b for b in range(1, 5)] if bless else [bonus]
     probabilities = []

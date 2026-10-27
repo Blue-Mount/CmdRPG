@@ -1948,6 +1948,38 @@
       "category": "accessory",
       "save_bonus": 1,
       "description": "所有属性豁免+1，包含专注豁免，不影响独立死亡豁免；占用鞋子位。"
+    },
+    "precision_ring": {
+      "name": "精准戒指",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "attack_bonus": 2,
+      "description": "使用主手武器的攻击命中+2；不加成附赠徒手、疾风连击或法术。与守护戒指占同一戒指位。"
+    },
+    "weave_ring": {
+      "name": "织法戒指",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "spell_dc": 2,
+      "description": "法术豁免DC+2；不提高法术攻击或伤害。与守护/瞄准指环占同一戒指位。"
+    },
+    "ki_ring": {
+      "name": "蓄气戒指",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "ki_bonus": 2,
+      "description": "2级以上武僧气点上限+2；穿戴不补气，短休或营地休整可恢复至新上限；反复穿脱不能补气。"
+    },
+    "strider_boots": {
+      "name": "远行长靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "speed_bonus": 6,
+      "description": "各职业移动速度+6米；与轻捷靴/坚心靴占同一鞋子位，不影响武僧无甲收益。"
     }
   }
 }

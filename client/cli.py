@@ -19,7 +19,7 @@ from .menu import TerminalMenu
 
 HELP = """中文游玩：选角色编号 → 选行动/技能编号 → 选目标编号或目的地 → 自动预览 → c 确认。
 0 返回并取消当前预览；q 退出。数字只选择当前列表条目；多目标可输入 1,2,3。
-当前可玩内容：独立前哨战，或五站远征战役；四职业从1级成长至8级，含路线分支与两阶段最终Boss。
+当前可玩内容：独立前哨战，或七站远征战役；四职业从1级成长至8级，含路线分支与两阶段最终Boss。
 首页9或战后12新开战役，保留旧周目。战役胜利后13/14选择路线，15营地休整，16商店。
 地图上下均有坐标；map 展开地形与地标，party 查资源，技能与规则菜单查完整说明。
 7–10 成长/装备/准备法术；独立开发局11号沿用当前组合重新演练。
@@ -382,7 +382,7 @@ def install_completion(client):
 
 
 def argument_parser():
-    parser = argparse.ArgumentParser(description="四人小队文字战术游戏：独立演练与五站战役")
+    parser = argparse.ArgumentParser(description="四人小队文字战术游戏：独立演练与七站战役")
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--setup", action="store_true", help="交互选择队伍名与四个职业")
     selection.add_argument("--new", action="store_true", help="开始新周目")
@@ -391,7 +391,7 @@ def argument_parser():
     parser.add_argument("--name", default="远征队", help="新队伍名称")
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric", help="恰好四个职业，允许重复")
     parser.add_argument("--seed", type=int, help="新周目随机种子")
-    parser.add_argument("--campaign", action="store_true", help="新开五站远征战役（保留旧周目）")
+    parser.add_argument("--campaign", action="store_true", help="新开七站远征战役（保留旧周目）")
     parser.add_argument("--ui", choices=("auto", "cards", "plain"), default="auto",
                         help="固定区域决策卡或兼容文字入口；auto 在支持的交互终端启用卡片")
     parser.add_argument("--db", help="本地 SQLite 路径（默认 CMDRPG_DB 或 data/game.sqlite3）")

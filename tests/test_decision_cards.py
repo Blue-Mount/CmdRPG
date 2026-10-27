@@ -92,9 +92,9 @@ def test_settlement_choices_follow_numeric_order_in_decision_panel(tmp_path, nod
                                    if ' | ' in line))
             screen.navigate('n')
         right = '\n'.join(pages)
-        assert right.index('1 全队短休') < right.index('12 新开五站远征战役')
+        assert right.index('1 全队短休') < right.index('12 新开七站远征战役')
         if node:
-            assert right.index('12 新开五站远征战役') < right.index('16 营地商店')
+            assert right.index('12 新开七站远征战役') < right.index('16 营地商店')
     finally:
         transport.close()
 
@@ -148,6 +148,43 @@ def test_selected_effect_rules_preview_cancel_and_stale_confirmation(tmp_path):
         assert "过期" in screen.feedback
         assert client.view["revision"] == before["revision"] + 1
         assert not client.ui.confirmation
+    finally:
+        transport.close()
+
+
+@pytest.mark.parametrize('size', [(110, 36), (132, 44), (160, 50)])
+def test_roll_explanation_is_accessible_in_card_preview_and_result(tmp_path, size):
+    class DodgeArena(Arena):
+        def new_run(self, *args, **kwargs):
+            state = super().new_run(*args, **kwargs)
+            state['actors']['E1']['conditions'] = ['dodge']
+            return state
+
+    client, transport, screen = session(tmp_path, DodgeArena())
+    try:
+        select(client, dict(type='attack', actor='P1', target='E1'))
+        before = transport.repository._load(client.run_id)
+        frames = []
+        for _ in range(16):
+            frame = screen.frame(size)
+            assert len(frame.splitlines()) <= size[1]
+            assert all(columns(line) < size[0] for line in frame.splitlines())
+            frames.append(frame)
+            screen.navigate('n')
+        assert '劣势' in '\n'.join(frames)
+        assert '目标正在闪避' in screen.preview
+        assert transport.repository._load(client.run_id) == before
+        with patch('core.dice.die', side_effect=[7, 8] + [1] * 20):
+            client.handle('c')
+        assert '取低 7' in screen.feedback and '目标正在闪避' in screen.feedback
+        frames = []
+        for _ in range(16):
+            frame = screen.frame(size)
+            assert len(frame.splitlines()) <= size[1]
+            assert all(columns(line) < size[0] for line in frame.splitlines())
+            frames.append(frame)
+            screen.navigate(']')
+        assert '取低 7' in '\n'.join(frames)
     finally:
         transport.close()
 

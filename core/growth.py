@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 LEVEL_CAP = 8
-CONTENT_VERSION = '0.5.0-m5'
-RULES_VERSION = '0.5.0-provisional'
+CONTENT_VERSION = '0.6.0-m6'
+RULES_VERSION = '0.6.0-provisional'
 EQUIPMENT_SLOTS = ("main_hand", "off_hand", "armor", "ring", "feet")
 
 def load_growth(path=None):
@@ -169,11 +169,11 @@ def validate_growth(data):
             ):
                 raise ValueError("growth: ability unlocked without slot")
     for key, b in data["items"].items():
-        BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus"}
+        BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus", "ki_bonus"}
         if set(b) - {"name", "slot", "kind", "dice", "damage_type", "category", "ac", "two_handed", "base_weapon", "description"} - BONUSES:
             raise ValueError("growth: unknown equipment effect")
         for field in BONUSES & b.keys():
-            _number(b[field], "equipment bonus", 0, 3, integer=True)
+            _number(b[field], "equipment bonus", 0, 6 if field == "speed_bonus" else 3, integer=True)
         if "base_weapon" in b and (not isinstance(b['base_weapon'], str) or b["base_weapon"] not in (base["items"] | data["items"])):
             raise ValueError("growth: unknown base weapon")
         if (
@@ -265,6 +265,9 @@ def snapshot(actor, level, items):
         ("slots", "max_slots", s["slots"]),
         ("resources", "max_resources", s["resources"]),
     ]:
+        incoming = deepcopy(incoming)
+        if current == 'resources' and actor['template'] == 'monk' and 'ki' in incoming:
+            incoming['ki'] += sum(items.get(item, {}).get('ki_bonus', 0) for item in actor.get('equipment', {}).values())
         used = {k: v - actor[current].get(k, 0) for k, v in actor[maximum].items()}
         actor[maximum] = deepcopy(incoming)
         actor[current] = {
@@ -340,6 +343,10 @@ def recalculate(a, items):
             (15 if a["level"] >= 6 else 12) if a["level"] >= 2 and not armor and not eq.get("off_hand") else 9
         )
     a["speed"] = (a["speed"] if a["template"] == "monk" else DATA["classes"][a["template"]][str(a["level"])]["speed"]) + bonus(a, items, "speed_bonus")
+    if a['template'] == 'monk' and 'ki' in a.get('max_resources', {}):
+        a['max_resources']['ki'] = DATA['classes']['monk'][str(a['level'])]['resources']['ki'] + bonus(a, items, 'ki_bonus')
+        # Equipping raises the cap only. Recovery fills it; swapping cannot farm ki.
+        a['resources']['ki'] = min(a['resources'].get('ki', 0), a['max_resources']['ki'])
 
 
 class GrowthMixin:
@@ -376,7 +383,8 @@ class GrowthMixin:
                 for k, v in a["equipment"].items()
             )
             setup.append(dict(type="prepare", actor=a["id"], spells=a["prepared"]))
-        replay_engine = Engine(self._campaign_pack('heart' if state.get('boss_slice') else 'forge')) if state.get('battle_slice') or state.get('boss_slice') else self
+        encounter = state.get('encounter_slice') or ('heart' if state.get('boss_slice') else 'forge')
+        replay_engine = Engine(self._campaign_pack(encounter)) if state.get('battle_slice') or state.get('boss_slice') or state.get('encounter_slice') else self
         fresh = Engine.new_run(
             replay_engine,
             state["name"],
@@ -389,10 +397,12 @@ class GrowthMixin:
         fresh["development"] = True
         if state.get('battle_slice'): fresh['battle_slice'] = True
         if state.get('boss_slice'): fresh['boss_slice'] = True
+        if state.get('encounter_slice'): fresh['encounter_slice'] = state['encounter_slice']
         fresh["battle_snapshot"]["id"] = state["id"]
         fresh["battle_snapshot"]["development"] = True
         if state.get('battle_slice'): fresh['battle_snapshot']['battle_slice'] = True
         if state.get('boss_slice'): fresh['battle_snapshot']['boss_slice'] = True
+        if state.get('encounter_slice'): fresh['battle_snapshot']['encounter_slice'] = state['encounter_slice']
         initial_events = fresh["event_log"]
         fresh["event_log"] = deepcopy(state["event_log"])
         fresh["event_seq"] = state["event_seq"]
@@ -628,6 +638,7 @@ class GrowthMixin:
         if aid == "flurry":
             from . import dice
             adv, dis, height = self._attack_context(state, a, targets[0])
+            result["attack_roll"] = self._attack_roll_info(state, a, targets[0])
             stat = "dex" if a["stats"]["dex"] >= a["stats"]["str"] else "str"
             result["hit_probability"] = dice.hit_probability(
                 proficiency(a) + mod(a["stats"][stat]) + height,

@@ -134,11 +134,11 @@ class TerminalMenu:
                 lines.extend("   " + line for line in render_actor_card(actor).splitlines()[1:])
             lines.append("5 地图  6 队伍资源  7 详细日志  8 操作帮助")
             if "9" in menu:
-                lines.append('9 战败重试' if menu['9'][0] == 'retry' else '9 新开五站远征战役（保留本局）')
+                lines.append('9 战败重试' if menu['9'][0] == 'retry' else '9 新开七站远征战役（保留本局）')
         elif self.stage == "settlement":
             campaign = client.view.get('campaign')
             if campaign:
-                lines.append('%s · %s/5站 · 金币%s · %s' % (campaign['name'], campaign['stage'], campaign['gold'],
+                lines.append('%s · %s/%s站 · 金币%s · %s' % (campaign['name'], campaign['stage'], campaign['total'], campaign['gold'],
                               '远征已通关，裂隙关闭！' if campaign['completed'] else '本场胜利，全队已成长至%s级' % campaign['unlocked_level']))
             else:
                 lines.append('战斗结果：胜利。')
@@ -152,7 +152,7 @@ class TerminalMenu:
             lines.append("4 查看地图  5 详细日志  6 战利品说明")
             lines.append("  ".join(n+" "+v+" 成长与装备" for n,(k,v) in menu.items() if k=="growth"))
             if "11" in menu: lines.append("11 沿用当前成长与装备重新演练（全部资源刷新）")
-            lines.append('12 新开五站远征战役（保留本局）')
+            lines.append('12 新开七站远征战役（保留本局）')
             for n, (kind, entry) in sorted(menu.items(), key=lambda pair: int(pair[0])):
                 if kind == 'campaign_command':
                     lines.append(n + ' ' + entry[1] + ('（20金币；全队复苏、生命/法术位/职业资源全恢复）' if entry[0]['type'] == 'camp' else ''))
@@ -458,8 +458,8 @@ class TerminalMenu:
                                  "templates": [a["template"] for a in self.client.view.get("party", [])]}
             if kind == 'campaign_new':
                 self.confirmation['campaign'] = True
-                self.action = {'name': '新开五站远征战役'}
-                self.client.output('五站远征：前哨 → 旧道/山脊 → 要塞 → 熔炉 → 最终Boss。四人从1级成长至8级。')
+                self.action = {'name': '新开七站远征战役'}
+                self.client.output('七站远征：前哨 → 旧道/山脊 → 要塞 → 熔炉 → 断桥交火 → 回响大厅 → 最终Boss。四人从1级成长至8级。')
             self.client.output("新建独立周目，使用相同的四人职业阵容，生命和资源从初始模板重新开始。")
             self.client.output("原周目已保留，可用 --run %s 恢复；新战斗开始后自动保存。" % self.client.run_id)
             self.show()
