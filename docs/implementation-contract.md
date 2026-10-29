@@ -124,3 +124,15 @@ SQLite表结构和JSON外壳仍为1；M3新局标记内容 `0.3.0-m3`、规则 `
 角色growth_history保存逐级收益，last_growth保存最近一次跨级变化；成长预览、战役自动升级与中文growth只读查询复用相同收益生成逻辑。旧档历史不补造。
 
 敌人可配置boss阈值/范围/伤害骰/DC，达到阈值且存活时触发一次，boss_phase随状态持久化。转阶段不重置预算/控制，实际动作继续由命令和反应驱动。待反应与retry沿用同一事务、RNG及幂等回执，不新增后台计时。
+
+## 0.7六职业、十四站与升环（2026-10-29，覆盖历史范围）
+
+新增`rogue`/`warlock`，六职业各八份快照。装备允许明确的`range`与`finesse`；普通武器攻击、预览、优劣势与接敌共用这些字段。短弓不能借机攻击，也不能解锁武僧武艺。偷袭和邪魔祝福为真实被动，快手改变附赠预算，契约位升级跨环保留已消耗数量。
+
+`menu_actions`的带环法术新增`slot_options`，逐项为`slot / remaining / available / upcast / effect`。客户端按环级列出选择，仍提交原`cast`命令的`slot`整数；戏法不带此字段。正式options重新生成对应目标数与段数，preview与execute共用合法性、扣费和效果；客户端不掷骰或推演隐藏目标。
+
+新敌人可配置`attacks: 1–2`、`support: {dice,uses,range}`，`spell`可额外指定`name/radius`。治疗次数持久化，范围可伤及敌友。所有范围结算按角色ID排序，避免JSON/SQLite重排对象改变RNG。
+
+新战役edition3十四场；edition2七场保留在`previous_nodes`，缺省edition1五场保留在`legacy_nodes`。外层内容为`0.7.0-expansion / 0.7.0-campaign`，规则`0.7.0-provisional`，SQLite与JSON格式仍为1；精确兼容0.6及历史组合。存档不做隐式升级，成功写入才更新外层版本。
+
+内容加载要求每个敌人占位时仍存在安全可达的近战触及格。默认加载缓存以完整三份内容文档作为键，每次返回独立深拷贝；显式加载测试文件重新验证，不共享可变内容，不以文件时间戳判断是否变更。

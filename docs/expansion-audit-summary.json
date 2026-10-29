@@ -1,0 +1,345 @@
+{
+  "date": "2026-10-29",
+  "rules_version": "0.7.0-provisional",
+  "scope": "Engineering evidence from legal-command scripts and pytest; not human enjoyment scores or BG3 build certification",
+  "content": {
+    "classes": 6,
+    "class_level_snapshots": 48,
+    "battles_per_campaign": 14,
+    "route_combinations": 4,
+    "encounter_nodes": 16,
+    "distinct_topologies": 16
+  },
+  "baseline": {
+    "completed": 6,
+    "total": 6,
+    "battles": 42
+  },
+  "regression": {
+    "passed": 486,
+    "subtests": 48,
+    "seconds": 271.87
+  },
+  "offense": {
+    "completed": 27,
+    "total": 28,
+    "parties": {
+      "balanced": {
+        "completed": 4,
+        "total": 4,
+        "battles": 56
+      },
+      "physical": {
+        "completed": 4,
+        "total": 4,
+        "battles": 56
+      },
+      "casters": {
+        "completed": 4,
+        "total": 4,
+        "battles": 56
+      },
+      "expanded": {
+        "completed": 4,
+        "total": 4,
+        "battles": 56
+      },
+      "new_classes": {
+        "completed": 4,
+        "total": 4,
+        "battles": 56
+      },
+      "warlocks": {
+        "completed": 4,
+        "total": 4,
+        "battles": 56
+      },
+      "rogues": {
+        "completed": 3,
+        "total": 4,
+        "battles": 54
+      }
+    },
+    "battles": 390,
+    "max_rounds": 33,
+    "suspect_stalls": [
+      {
+        "party": "rogues",
+        "route": "road",
+        "seed": 7,
+        "node": "heart",
+        "rounds": 23,
+        "unused_action_ends": 0
+      },
+      {
+        "party": "rogues",
+        "route": "road",
+        "seed": 42,
+        "node": "sanctum",
+        "rounds": 33,
+        "unused_action_ends": 0
+      }
+    ],
+    "downed": 36,
+    "deaths": 7,
+    "nodes": {
+      "archive": {
+        "samples": 28,
+        "minimum": 3,
+        "median": 5.0,
+        "maximum": 13
+      },
+      "bastion": {
+        "samples": 28,
+        "minimum": 2,
+        "median": 5.0,
+        "maximum": 12
+      },
+      "cistern": {
+        "samples": 28,
+        "minimum": 2,
+        "median": 3.0,
+        "maximum": 7
+      },
+      "crossfire": {
+        "samples": 28,
+        "minimum": 3,
+        "median": 6.0,
+        "maximum": 14
+      },
+      "crucible": {
+        "samples": 27,
+        "minimum": 2,
+        "median": 5,
+        "maximum": 18
+      },
+      "forge": {
+        "samples": 28,
+        "minimum": 2,
+        "median": 3.0,
+        "maximum": 11
+      },
+      "foundry": {
+        "samples": 28,
+        "minimum": 3,
+        "median": 4.5,
+        "maximum": 8
+      },
+      "gate": {
+        "samples": 28,
+        "minimum": 3,
+        "median": 5.0,
+        "maximum": 8
+      },
+      "heart": {
+        "samples": 27,
+        "minimum": 3,
+        "median": 4,
+        "maximum": 23
+      },
+      "observatory": {
+        "samples": 28,
+        "minimum": 2,
+        "median": 4.0,
+        "maximum": 9
+      },
+      "outpost": {
+        "samples": 28,
+        "minimum": 2,
+        "median": 3.0,
+        "maximum": 6
+      },
+      "quarry": {
+        "samples": 14,
+        "minimum": 3,
+        "median": 7.0,
+        "maximum": 8
+      },
+      "ridge": {
+        "samples": 14,
+        "minimum": 2,
+        "median": 4.0,
+        "maximum": 6
+      },
+      "road": {
+        "samples": 14,
+        "minimum": 2,
+        "median": 3.0,
+        "maximum": 5
+      },
+      "sanctum": {
+        "samples": 28,
+        "minimum": 3,
+        "median": 5.5,
+        "maximum": 33
+      },
+      "switchyard": {
+        "samples": 14,
+        "minimum": 4,
+        "median": 6.0,
+        "maximum": 8
+      }
+    }
+  },
+  "equipped": {
+    "completed": 5,
+    "total": 8,
+    "parties": {
+      "rogues": {
+        "completed": 1,
+        "total": 4,
+        "battles": 49
+      },
+      "expanded": {
+        "completed": 4,
+        "total": 4,
+        "battles": 56
+      }
+    },
+    "battles": 105,
+    "max_rounds": 28,
+    "suspect_stalls": [
+      {
+        "party": "rogues",
+        "route": "ridge",
+        "seed": 42,
+        "node": "crossfire",
+        "rounds": 28,
+        "unused_action_ends": 0
+      }
+    ],
+    "downed": 35,
+    "deaths": 10,
+    "nodes": {
+      "archive": {
+        "samples": 8,
+        "minimum": 4,
+        "median": 5.0,
+        "maximum": 9
+      },
+      "bastion": {
+        "samples": 8,
+        "minimum": 3,
+        "median": 5.5,
+        "maximum": 11
+      },
+      "cistern": {
+        "samples": 8,
+        "minimum": 3,
+        "median": 4.0,
+        "maximum": 4
+      },
+      "crossfire": {
+        "samples": 8,
+        "minimum": 4,
+        "median": 12.0,
+        "maximum": 28
+      },
+      "crucible": {
+        "samples": 5,
+        "minimum": 6,
+        "median": 6,
+        "maximum": 10
+      },
+      "forge": {
+        "samples": 8,
+        "minimum": 2,
+        "median": 3.5,
+        "maximum": 5
+      },
+      "foundry": {
+        "samples": 8,
+        "minimum": 4,
+        "median": 4.0,
+        "maximum": 7
+      },
+      "gate": {
+        "samples": 8,
+        "minimum": 3,
+        "median": 4.0,
+        "maximum": 5
+      },
+      "heart": {
+        "samples": 5,
+        "minimum": 4,
+        "median": 4,
+        "maximum": 7
+      },
+      "observatory": {
+        "samples": 8,
+        "minimum": 3,
+        "median": 5.0,
+        "maximum": 7
+      },
+      "outpost": {
+        "samples": 8,
+        "minimum": 2,
+        "median": 3.5,
+        "maximum": 4
+      },
+      "quarry": {
+        "samples": 4,
+        "minimum": 5,
+        "median": 5.0,
+        "maximum": 6
+      },
+      "ridge": {
+        "samples": 4,
+        "minimum": 2,
+        "median": 3.5,
+        "maximum": 4
+      },
+      "road": {
+        "samples": 4,
+        "minimum": 3,
+        "median": 3.0,
+        "maximum": 4
+      },
+      "sanctum": {
+        "samples": 7,
+        "minimum": 4,
+        "median": 5,
+        "maximum": 10
+      },
+      "switchyard": {
+        "samples": 4,
+        "minimum": 4,
+        "median": 5.5,
+        "maximum": 7
+      }
+    }
+  },
+  "source_sha256": {
+    "client/__init__.py": "92a3d03d12dde912ea16d09d6e6f8dd91fdc747b775cad6f2e9ed2cfacc53f0b",
+    "client/__main__.py": "fd860037dd55b06637cd907eaf6efa4ba12f072e134d3393d8bde0e390758626",
+    "client/cards.py": "46e207635c5a20c6323b70c37209f3fc625ba6211a8138677319d83f78807ea2",
+    "client/cli.py": "304fe319a19aaf19c5a8a5fadc1e9cc04fffdd761db85d1bc8d543c38a6f5f16",
+    "client/menu.py": "2efc25b30495f6a909db7695952ad91a7ce80095e9d9923ca0d35e0c9bfca880",
+    "client/parser.py": "af1b6f8e2a0b72a51176df55ff556c9fb977d12cad75a3599701727569ea863a",
+    "client/render.py": "c0d112e07d008307366522575c94ab5e3411fe38e7451a9624cc20be3ddf6a2c",
+    "client/transport.py": "fcc9dc60b1728d6e0da704d51a6c4aa607da152707203d2b2b791db410c99924",
+    "content/campaign.json": "ef2a1b49dc87ed0909523739a75773b587d928fbfc7f260422f672e633b34658",
+    "content/growth.json": "342f3730cff631e7a345bf607590502c61ee652be38abd4f95c2481b860e8a38",
+    "content/pack.json": "462d0a0c1f8c9ac7b95a0a856042134a75ea1363c2da9aae7fd3e84691fb2645",
+    "core/__init__.py": "5d26203d4589df80e716cdb9e60441ef5e2ee535e2466ee710195a3c8e9db906",
+    "core/advanced.py": "5784b7e86c4312ed76f5e794bddac86b1f1157eff284e5c4d76d2c301f57da84",
+    "core/battle_report.py": "60464edb21fdd436fb4639593ea727ad617164fecdac579b2f3b07c053f93409",
+    "core/campaign.py": "bbf3664435452d9056bccb420421314d2b1f4c11fb73e9aa55d8a80aea23214b",
+    "core/content.py": "63d8c70b24129a84bb2dc965facd368cadff6f40c3a62867ea744ecbe0c98181",
+    "core/dice.py": "e4ccda3613f262373668c81c8aa1847e50b6dfd6ee897bcf4ffcc790689195dd",
+    "core/engine.py": "b5dd9e21a827998480ad9a7cd8dff817ec081088f8ed59cba1ce9366acd48441",
+    "core/equipment.py": "a6c1e9e25cabe8588a773aaf880e70ec71afbb8045b808634c82efca8ec828e0",
+    "core/expansion.py": "ee8aaa452722fc10f6da23865d00f80b13b85f2a6a96dfd3be5428af5172d8bd",
+    "core/growth.py": "f96846c232136627910aeba84fb1658d5f56259c6c9d3ca12212c165dd4c616b",
+    "core/spatial.py": "e18c61a47c3b44905d419fc5f8e7183831fe96c55ffc50a93619a31637bb6a47",
+    "core/tactics.py": "13f6e184c6f655b0fe2361c897e53719ae2f96c1c20c42937e23d198438bdfa2"
+  },
+  "unverified": [
+    "Expanded-version human enjoyment and pacing",
+    "Actual five-hour play time",
+    "Exact BG3 build and hotfix behavior"
+  ],
+  "observed_limits": [
+    "Four-rogue static policies can lose; rapier front line is not a universally superior build. No enemy HP/AC changes were made to force 100% wins."
+  ]
+}

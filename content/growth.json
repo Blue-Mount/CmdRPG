@@ -1591,6 +1591,704 @@
           "divine_strike"
         ]
       }
+    },
+    "rogue": {
+      "1": {
+        "level": 1,
+        "stats": {
+          "str": 10,
+          "dex": 16,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 10,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {},
+        "abilities": [],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack"
+        ]
+      },
+      "2": {
+        "level": 2,
+        "stats": {
+          "str": 10,
+          "dex": 16,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 17,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {},
+        "abilities": [
+          "cunning_dash",
+          "cunning_disengage"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack"
+        ]
+      },
+      "3": {
+        "level": 3,
+        "stats": {
+          "str": 10,
+          "dex": 16,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 24,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {},
+        "abilities": [
+          "cunning_dash",
+          "cunning_disengage"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack",
+          "fast_hands"
+        ]
+      },
+      "4": {
+        "level": 4,
+        "stats": {
+          "str": 10,
+          "dex": 18,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 31,
+        "proficiency": 2,
+        "slots": {},
+        "resources": {},
+        "abilities": [
+          "cunning_dash",
+          "cunning_disengage"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack",
+          "fast_hands"
+        ]
+      },
+      "5": {
+        "level": 5,
+        "stats": {
+          "str": 10,
+          "dex": 18,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 38,
+        "proficiency": 3,
+        "slots": {},
+        "resources": {},
+        "abilities": [
+          "cunning_dash",
+          "cunning_disengage"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack",
+          "fast_hands"
+        ]
+      },
+      "6": {
+        "level": 6,
+        "stats": {
+          "str": 10,
+          "dex": 18,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 45,
+        "proficiency": 3,
+        "slots": {},
+        "resources": {},
+        "abilities": [
+          "cunning_dash",
+          "cunning_disengage"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack",
+          "fast_hands"
+        ]
+      },
+      "7": {
+        "level": 7,
+        "stats": {
+          "str": 10,
+          "dex": 18,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 52,
+        "proficiency": 3,
+        "slots": {},
+        "resources": {},
+        "abilities": [
+          "cunning_dash",
+          "cunning_disengage"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack",
+          "fast_hands",
+          "evasion"
+        ]
+      },
+      "8": {
+        "level": 8,
+        "stats": {
+          "str": 10,
+          "dex": 20,
+          "con": 14,
+          "int": 12,
+          "wis": 14,
+          "cha": 10
+        },
+        "hp": 59,
+        "proficiency": 3,
+        "slots": {},
+        "resources": {},
+        "abilities": [
+          "cunning_dash",
+          "cunning_disengage"
+        ],
+        "extra_attack": 0,
+        "spell_stat": null,
+        "save_proficiencies": [
+          "dex",
+          "int"
+        ],
+        "equipment": {
+          "main_hand": "shortbow",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "rapier",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "sneak_attack",
+          "fast_hands",
+          "evasion"
+        ]
+      }
+    },
+    "warlock": {
+      "1": {
+        "level": 1,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 16
+        },
+        "hp": 10,
+        "proficiency": 2,
+        "slots": {
+          "1": 1
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing"
+        ]
+      },
+      "2": {
+        "level": 2,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 16
+        },
+        "hp": 17,
+        "proficiency": 2,
+        "slots": {
+          "1": 2
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing",
+          "agonizing_blast"
+        ]
+      },
+      "3": {
+        "level": 3,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 16
+        },
+        "hp": 24,
+        "proficiency": 2,
+        "slots": {
+          "2": 2
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life",
+          "shatter",
+          "scorching_ray"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing",
+          "agonizing_blast"
+        ]
+      },
+      "4": {
+        "level": 4,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 18
+        },
+        "hp": 31,
+        "proficiency": 2,
+        "slots": {
+          "2": 2
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life",
+          "shatter",
+          "scorching_ray"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing",
+          "agonizing_blast"
+        ]
+      },
+      "5": {
+        "level": 5,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 18
+        },
+        "hp": 38,
+        "proficiency": 3,
+        "slots": {
+          "3": 2
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life",
+          "shatter",
+          "scorching_ray",
+          "fireball"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing",
+          "agonizing_blast"
+        ]
+      },
+      "6": {
+        "level": 6,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 18
+        },
+        "hp": 45,
+        "proficiency": 3,
+        "slots": {
+          "3": 2
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life",
+          "shatter",
+          "scorching_ray",
+          "fireball"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing",
+          "agonizing_blast"
+        ]
+      },
+      "7": {
+        "level": 7,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 18
+        },
+        "hp": 52,
+        "proficiency": 3,
+        "slots": {
+          "4": 2
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life",
+          "shatter",
+          "scorching_ray",
+          "fireball",
+          "blight"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing",
+          "agonizing_blast"
+        ]
+      },
+      "8": {
+        "level": 8,
+        "stats": {
+          "str": 8,
+          "dex": 14,
+          "con": 14,
+          "int": 10,
+          "wis": 12,
+          "cha": 20
+        },
+        "hp": 59,
+        "proficiency": 3,
+        "slots": {
+          "4": 2
+        },
+        "resources": {},
+        "abilities": [
+          "eldritch_blast",
+          "false_life",
+          "shatter",
+          "scorching_ray",
+          "fireball",
+          "blight"
+        ],
+        "extra_attack": 0,
+        "spell_stat": "cha",
+        "save_proficiencies": [
+          "wis",
+          "cha"
+        ],
+        "equipment": {
+          "main_hand": "dagger",
+          "off_hand": null,
+          "armor": "leather",
+          "ring": null,
+          "feet": null
+        },
+        "proficiencies": [
+          "simple",
+          "light"
+        ],
+        "speed": 9,
+        "passives": [
+          "dark_blessing",
+          "agonizing_blast"
+        ]
+      }
     }
   },
   "abilities": {
@@ -1695,6 +2393,46 @@
       "level": 4,
       "range": 1.5,
       "description": "相邻仍有生命的队友获得死亡防护：本场首次被伤害降至0生命时改为1，随后消耗；同名不叠加，不需专注，跨场清除。"
+    },
+    "eldritch_blast": {
+      "name": "魔能爆",
+      "effect": "eldritch_blast",
+      "cost": "action",
+      "level": 0,
+      "range": 18,
+      "description": "18米魅力法术攻击，每束1d10力场；5级起两束，可逐束分配。2级痛苦魔爆使每束命中伤害加魅力修正。"
+    },
+    "false_life": {
+      "name": "虚假生命",
+      "effect": "false_life",
+      "cost": "action",
+      "level": 1,
+      "range": 0,
+      "description": "自身获得1d4+4临时生命；每高一环多5。与已有临时生命取较高值，不叠加；持续本场。"
+    },
+    "shatter": {
+      "name": "粉碎音波",
+      "effect": "shatter",
+      "cost": "action",
+      "level": 2,
+      "range": 18,
+      "description": "选择可见地面或敌人，3米内全部生物体质豁免；3d8雷鸣，成功减半，每高一环多1d8。会伤及友军；本包不实现无机生物豁免劣势与物体破坏。"
+    },
+    "cunning_dash": {
+      "name": "灵巧动作：疾走",
+      "effect": "cunning_dash",
+      "cost": "bonus",
+      "level": 0,
+      "range": 0,
+      "description": "消耗一个附赠动作，额外获得自身速度等量移动；不消耗普通动作。"
+    },
+    "cunning_disengage": {
+      "name": "灵巧动作：撤离",
+      "effect": "cunning_disengage",
+      "cost": "bonus",
+      "level": 0,
+      "range": 0,
+      "description": "消耗一个附赠动作，本回合移动不触发借机攻击；不消耗普通动作。"
     }
   },
   "items": {
@@ -1980,6 +2718,94 @@
       "category": "accessory",
       "speed_bonus": 6,
       "description": "各职业移动速度+6米；与轻捷靴/坚心靴占同一鞋子位，不影响武僧无甲收益。"
+    },
+    "shortbow": {
+      "name": "斥候短弓",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "dice": "1d6",
+      "damage_type": "piercing",
+      "range": 18,
+      "two_handed": true,
+      "description": "18米远程武器，使用敏捷；贴身远程攻击具有劣势。双手，不能同时持盾。"
+    },
+    "rapier": {
+      "name": "探路细剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "martial",
+      "dice": "1d8",
+      "damage_type": "piercing",
+      "finesse": true,
+      "description": "灵巧近战武器，取力量/敏捷较高值；游荡者熟练，可触发偷袭。"
+    },
+    "scout_bow": {
+      "name": "穿隙短弓",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "shortbow",
+      "dice": "1d6",
+      "damage_type": "piercing",
+      "range": 18,
+      "two_handed": true,
+      "attack_bonus": 1,
+      "damage_bonus": 1,
+      "description": "18米短弓，武器命中/伤害+1；双手。"
+    },
+    "duelist_rapier": {
+      "name": "游隼细剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "martial",
+      "base_weapon": "rapier",
+      "dice": "1d8",
+      "damage_type": "piercing",
+      "finesse": true,
+      "attack_bonus": 1,
+      "damage_bonus": 1,
+      "ac_bonus": 1,
+      "description": "灵巧细剑，武器命中/伤害+1，自身AC+1；近战攻守方向。"
+    },
+    "fiend_staff": {
+      "name": "灰誓护杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "staff",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "ac_bonus": 2,
+      "description": "自身AC+2；牺牲法术命中/DC，偏向生存。"
+    },
+    "rogue_trophy": {
+      "name": "破晓追猎弓",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "shortbow",
+      "dice": "1d6",
+      "damage_type": "piercing",
+      "range": 18,
+      "two_handed": true,
+      "attack_bonus": 1,
+      "damage_bonus": 1,
+      "save_bonus": 1,
+      "description": "要塞独占短弓：武器命中/伤害+1，属性豁免+1；双手，18米，使用敏捷。"
+    },
+    "warlock_trophy": {
+      "name": "封焰契杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "staff",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "spell_attack": 1,
+      "spell_dc": 1,
+      "ac_bonus": 1,
+      "description": "要塞独占：法术攻击/DC+1，自身AC+1；不直接增加魔能爆伤害。"
     }
   }
 }

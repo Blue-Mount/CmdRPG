@@ -1,156 +1,83 @@
 # CmdRPG：四人小队终端战术游戏
 
-目前包含四职业1–8级成长与七站战役：路线分支、八张遭遇地图、营地、金币奖励、药水/装备商店和两阶段最终 Boss。游戏在本机运行，使用 SQLite 自动存档；可手动通过 GitHub 换机传档。六职业和20场完整版仍是长期目标。
+六职业任选四人，固定成长到8级，完成十四场战役与两阶段最终Boss。四条完整路线组合、十六个手工遭遇节点，含营地、金币、商店、职业专属战利品、装备对比与准确战报。纯本地运行，仅依赖Python 3.11+标准库，SQLite逐动作自动存档。
 
-## 本轮：准确战报与自动战役检查
-
-战后18号查看各队员的对敌有效伤害、实际治疗、损失生命、临时生命吸收、攻击命中/暴击与资源消耗；随时输入 `report` 查看当前战报。统计不计过量伤害、溢出治疗与战后短休，不披露隐藏敌人的结算；旧战斗不补造分项数据，下一场起记录。
-
-战报还显示祝福实际促成的命中/豁免，以及震慑阻止的敌方回合/造成的自动豁免失败；结算突出显示祝福扭转判定。旧战报没有这些字段时明确提示，下场开始记录。
-
-无需人工试玩即可重复检查3阵容×2路线×2种子的84场战斗，报告包含逐场战报，完全在内存运行：
+## 立即游玩
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.audit_campaign --output .qa/campaign-audit.json
-# 对照直接输出与首轮祝福/震慑策略，共24次战役；不启用游戏内自动操作
-.\.venv\Scripts\python.exe -m tools.audit_campaign --policies offense support --output .qa/tactics-audit.json
+# 新战役；默认战士、武僧、法师、牧师
+python -m client --campaign --seed 42
+# 新职业阵容：战士、游荡者、邪术师、牧师；允许重复职业
+python -m client --campaign --classes fighter,rogue,warlock,cleric --seed 42
+# 六职业中文选角后建队
+python -m client --campaign --setup
+# 恢复最近周目
+python -m client
 ```
 
-自动通关只用于检查流程与比较数据，难度和体验仍需实际游玩判断。见 [本轮记录](docs/qa-battle-report-2026-10-27.md)。
+已有开发环境也可用 `.\.venv\Scripts\python.exe` 代替 `python`，或运行 `./run-local.ps1`。
 
-后续对照已修正脚本的斜角近战寻路、额外攻击期间接敌，并增加逐场移动/剩余动作记录；24次战役与完整回归结果见 [辅助收益与接敌检查](docs/qa-tactics-2026-10-27.md)。
+**选择角色 → 选择中文行动 → 选择目标/目的地 → 查看正式预览 → 输入 `c` 确认**。`0`返回，`q`退出；离开不会自动推进。非法输入和取消不会扣费或掷骰。
 
-## 本轮：战斗面板、装备选择与八级战斗
+带环法术有多个环级时，选技能后先选择要消耗的环级；列表显示剩余法术位与本环实际效果。飞弹/射线增加段数，火球增加伤害骰，治疗增加治疗骰，祝福增加目标上限，援助提高生命增益；法师护甲等升环无增强会明确说明。只有一种契约环级的邪术师直接使用该环，戏法无需选择。
 
-角色卡与 `party` 现在显示武器/护甲/盾牌熟练、武器和徒手命中、每动作/当前剩余攻击次数、法术攻击/DC、气点与法术位、AC和移动。祝福显示来源与剩余回合；专注结束的原因在结算中突出显示，重启仍可查最近一次原因。选目标和确认时明确优劣势及来源，结算明确取高/取低的实际骰子。
+支持的交互终端默认显示固定区域决策卡（至少110列×36行），小终端和管道使用文字菜单。`--ui cards` / `--ui plain`可显式选择；`n/p`翻决策列表，`]/[`翻结果。`rules`查看技能，`result`重看结算，`details`查看全部计算；`map`、`party`、`log 10`、`growth P1`、`report`按需查询。
 
-要塞胜利后商店新增精准戒指（主手武器命中+2）、织法戒指（法术DC+2）、蓄气戒指（武僧气点上限+2，穿戴不补气）和远行长靴（移动+6米）。换装预览显示数值变化和AC等取舍。营地维持20金币全恢复。
+## 这次扩展
 
-新战役为七站；熔炉后达到8级，连续体验断桥交火、回响大厅与最终Boss。旧五站周目保留原路线，更新后新建才进入七站。新增战斗可独立试玩：
+- **邪术师**：魅力魔能爆，5级起两束可逐束分配；痛苦魔爆逐束加魅力伤害；邪魔祝福提供不叠加的临时生命。契约法术位数量少、自动使用高环、短休全恢复，能施放虚假生命、粉碎音波、灼热射线、火球与枯萎术。范围法术会伤及友军。
+- **游荡者**：短弓或灵巧近战武器，命中满足条件时自动追加偷袭；2级附赠疾走/撤离，3级快手提供两个附赠动作，7级闪避。目标预览明确偷袭是否可用；近身射箭仍有劣势。隐匿和双持不在本包。
+- **十四场、十六节点**：增加蓄池、铸场、调度场/采场、书库、观测台、堡垒、圣所；新敌人包括有限治疗的修复师、双击近卫与范围施法者。保留歼灭目标，不预告敌人未来指令。
+- **成长与装备**：从逐场快速跨级改为分布在十四场中的七次升级，第12场胜利达到8级，最后两战使用完整构筑。新短弓/细剑与防御法杖提供取舍，要塞新增两职业独占奖励。
+- **可靠性**：旧五站/七站周目继续原路线；新周目才进入十四站。新增“敌人占位时仍能近战接敌”的地图检查，并固定范围结算顺序，保持SQLite重启前后的随机数与事件一致。
+
+完整范围、评分口径与验证结果见 [扩展验收](docs/expansion-2026-10-29.md)。这是一套明确缩减的BG3方向规则，不是完整职业或指定build复刻。
+
+## 战役与休整
+
+前哨 → 旧道/山脊 → 蓄池 → 铸场 → 要塞 → 调度场/采场 → 书库 → 熔炉 → 观测台 → 堡垒 → 断桥 → 圣所 → 大厅 → 最终Boss。
+
+战后13/14选择路线、15营地、16商店、7–10成长与配装、17全队成长记录、18战报。营地20金币，每站一次，全队复苏、恢复生命和资源；短休恢复半数最大生命与短休资源，邪术师契约法术位也全恢复。药水保留战中救急用途。
+
+地图每格1.5米；移动按合法路径、射程按三维距离，同高度斜角相邻可近战。高台、墙体、危险和困难地面有真实效果。尸体不占格。战败用 `retry`恢复原战前血量、资源、路线和随机数。
+
+## 少量时间快速体验
+
+以下入口创建独立临时存档，退出后显示的路径可恢复，不读取正常玩家进度。独立战胜利后11号沿用配装重新演练。
 
 ```powershell
-.\.venv\Scripts\python.exe -m tools.dev_play --campaign --ui cards
-.\.venv\Scripts\python.exe -m tools.dev_play --encounter crossfire --ui cards
-.\.venv\Scripts\python.exe -m tools.dev_play --encounter crucible --ui cards
+# 八级新阵容，直接体验双印圣所
+.\.venv\Scripts\python.exe -m tools.dev_play --encounter sanctum --classes fighter,rogue,warlock,cleric --ui cards
+# 六职业任选四人，从1级开始完整战役
+.\.venv\Scripts\python.exe -m tools.dev_play --campaign --classes fighter,rogue,warlock,cleric --ui cards
+# 精确指定等级体验某场；--encounter支持全部十六节点
+.\.venv\Scripts\python.exe -m tools.dev_play --encounter archive --level 4 --classes fighter,rogue,warlock,cleric
 ```
 
-独立试玩默认8级、隔离临时存档，胜利后11号沿用配装重演。范围、兼容和验证见 [本轮记录](docs/qa-next-stage-2026-10-27.md)。
-
-## 本轮试玩：8级、配装与两阶段Boss
-
-```powershell
-# 七站战役，从1级开始，最终Boss前到8级；商店可买护甲、盾牌、戒指和鞋子
-.\.venv\Scripts\python.exe -m tools.dev_play --campaign --ui cards
-# 直接体验8级两阶段Boss，独立临时存档，胜利后11号可重新演练
-.\.venv\Scripts\python.exe -m tools.dev_play --boss-slice --ui cards
-```
-
-升级结算逐级列出收益；战后7–10号查看队员最近成长，17号查看全队升级记录；随时输入 `growth` / `growth P1` 查看全队/单人成长记录。戒指、鞋子各一个独立装备位，购买后进入7–10号手动穿戴。旧档只读不改写，已进入的旧Boss不替换；新建战役或Boss试玩可体验全部改动。详见 [本轮改动与验证](docs/qa-level8-2026-10-26.md)。
-
-## M4 战役试玩
-
-在仓库根目录执行，使用独立临时存档，启动时会显示恢复命令：
-
-```powershell
-.\.venv\Scripts\python.exe -m tools.dev_play --campaign
-```
-
-也可 `python -m client --campaign --seed 42` 在正常本地数据库新开战役。旧周目保留；现有独立战斗首页9或战后12也能新开战役。
-
-路线为 **前哨 → 旧道或山脊 → 要塞双门 → 熔炉 → 断桥交火 → 回响大厅 → 裂隙之心 Boss**。战后13/14前进、15营地、16商店、7–10换装/准备法术，均先预览再按 `c`。胜利自动发金币并解锁成长；生命与资源消耗带入下一站。完整说明见 [战役规则](docs/campaign.md)，验证记录见 [M4 QA](docs/qa-m4-2026-10-18.md)。
-
-默认在支持的交互终端（至少110列×36行）使用固定区域决策卡：地图、角色/行动、预览和真实结算分区显示；小终端与管道自动使用文字菜单。`--ui cards` 选择卡片，`--ui plain` 保留原文字入口。卡片中 `n/p` 翻阅完整决策列表，`]/[` 翻阅完整结果；`rules` 展开所选技能，`result` 重看结算，`details` 展开本次全部计算。`map`、`party`、`log 10` 等原命令继续可用。多段攻击、伤害、击杀和状态事件按原顺序完整保留。
-
-直接体验5级四职业卡片战斗（独立临时存档）：
-
-```powershell
-.\.venv\Scripts\python.exe -m tools.dev_play --level 5 --ui cards
-```
-
-## A/B：战斗自由度与装备奖励
-
-飞弹/灼热射线可逐段分配目标，火球可选择地面爆心；5级武僧新增震慑拳，队友可利用攻击优势与自动失败的敏捷豁免配合。熔炉增加火抗守卫和豁免型术士。9件商店装备支持四职业的攻守/机动/治疗取舍，商店按进度补货；购买和换装直接显示属性、熟练与副作用对比。要塞胜利另发四职业专属战利品，商店不售，兼具两种装备方向的收益；战后菜单按编号递增显示。详见 [10月26日试玩反馈与下一步](docs/playtest-feedback-2026-10-26.md)。
-
-反复试玩5级战斗切片（独立临时存档，胜利后11号重新演练）：
-
-```powershell
-.\.venv\Scripts\python.exe -m tools.dev_play --battle-slice --ui cards
-```
-
-目标分配输入如 `1,1,2`；地面火球直接输入 `G6`。详见 [A/B实现与验证](docs/qa-combat-rewards-2026-10-23.md) 和 [终端玩法](docs/terminal.md)。
-
-## M3独立开发试玩
-
-在仓库根目录执行，数据库与客户端记录自动放到独立临时目录，退出后保留路径供恢复；不读取正常玩家存档或凭据：
-
-```powershell
-.\.venv\Scripts\python.exe -m tools.dev_play --level 5
-.\.venv\Scripts\python.exe -m tools.dev_play --levels 2,3,4,5 --equip P1:off_hand:none --equip P1:main_hand:greatsword
-```
-
-`--classes` 选择四人职业。`party` 查看中文装备、属性、成长、法术位和职业资源。胜利后7–10号进入各队员成长/装备/准备菜单，先预览再用 `c` 确认；开发局11号沿用新等级与装备重新演练，并刷新全部生命与资源。不是战役下一关或奖励。启动时输出该局的独立恢复命令。完整能力和规则差异见 [M3成长](docs/growth.md)。
-
-## 立即试玩
-
-需要 Python 3.11 或更高版本，在本项目目录执行。**本地玩法仅依赖 Python 标准库**。
-
-```powershell
-python -m client --new --seed 42
-```
-
-默认队伍为战士、武僧、法师、牧师；允许重复职业。首页显示文字地图与四名队员，标明谁能操作。输入角色编号后就能看到普通行动和该角色全部职业技能，包括中文名称、作用、成本、剩余资源及不可用原因。
-
-按屏幕上的编号游玩：**选择角色 → 选择中文行动或技能 → 选择目标或目的地 → 自动预览 → 输入 `c` 确认**。数字只选择当前列表，子菜单中 `0` 返回上一层，`q` 退出。攻击、治疗和施法的目标列表显示生命、距离、命中率或豁免概率；祝福可输入 `1,2,3` 选择多个目标。反应窗口也先选择，再用 `c` 确认。
-
-新周目先选 **3 号法师**，选“移动”，输入 `G6` 或选择常用目的地并确认，然后选“火焰箭”和敌人编号。法师从初始位置射向断墙另一侧会被遮挡；目标菜单会直接说明，移动菜单会展示真实路径、可达范围、危险与借机攻击。普通行动后保留选中的角色，选择“结束操作”并确认后自动切换到下一位可操作队员。
-
-已有命令仍可作为快捷入口：`actions P3` 看职业技能，`party` 看资源，`map` 看地图，`inspect G6` 查位置，`log 10` 按需展开计算明细；详见 [终端玩法与命令](docs/terminal.md)。默认界面无需记忆英文命令或能力编号。
-
-输入 `q` 随时离开，再执行 `python -m client` 恢复最近周目。存档位于 `data/game.sqlite3`，终端记住所选存档与周目 ID。待选反应不会因离开而推进；战败用 `retry` 恢复同一战前状态与随机数。
-
-**独立前哨战胜利后进入战后菜单**：`1` 全队短休，`2` 查看队伍，`3` 同阵容重开独立周目，`4` 地图，`5` 日志，`6` 战利品说明，`7–10` 成长与装备，`12` 新开战役。新建操作需要 `c` 确认，原存档保留。独立前哨战不发金币或尸体掉落；战役的奖励自动结算，可在商店购买装备。
-
-地图每格都有明确边界，`P2*` 标记当前选角；尸体另列说明且不占格、不挡路。目标菜单的距离是包含高差的**三维直线距离（同高度近战 / 触及允许斜角相邻）**，移动成本按可走路径另算。例如 K4 台阶到 L4 高台水平相隔 1.5 米、高差 1.5 米，距离约为 2.12 米。
-
-```powershell
-python -m client --new --classes fighter,fighter,monk,monk
-python -m client --run <周目ID>
-```
-
-当前目录已有开发虚拟环境时，也可执行 `.\.venv\Scripts\python.exe -m client --new`，或 `./run-local.ps1 -New`。
-
-## GitHub 存档
-
-平时直接本地玩，每个成功动作自动保存。换电脑时，先退出游戏，再手动同步：
-
-```powershell
-# 在有进度的电脑上传
-./run-local.ps1 -UploadSave
-# 在另一台电脑下载
-./run-local.ps1 -DownloadSave
-# 继续最近周目
-./run-local.ps1
-```
-
-也可使用 `python -m tools.sync_saves push` / `pull`。代码通过 `git pull` 更新；存档单独放在同一仓库的 `game-saves` 分支，工具自动处理，无需切换代码分支。需要 Git 和该 GitHub 仓库的读写权限，复用本机 Git 登录。
-
-下载覆盖前自动备份本机旧档；有未上传进度或远端分歧时拒绝静默覆盖。确认采用来源进度时使用 `-Replace`（命令行工具对应 `--replace`）。游玩期间不进行同步，断网可以照常玩。详见 [本地运行与 GitHub 存档](docs/deployment.md)。
-
-## 开发
+## 自动验收与开发
 
 ```powershell
 python -m venv .venv
 ./.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
 ./.venv/Scripts/python.exe -m pytest -q
+# 七阵容×两条关联路线×两种子；全程内存、合法命令，不操作玩家存档
+./.venv/Scripts/python.exe -m tools.audit_campaign --output .qa/campaign-audit.json
+# 精确选择两个分支，检查交叉路线
+./.venv/Scripts/python.exe -m tools.play_campaign --route road --branch quarry --classes fighter,rogue,warlock,cleric
 ```
 
-结构：`core/` 规则、`content/` 内容、`saves/` 本地存档、`client/` 中文终端、`tools/` 试玩/备份/GitHub 同步、`tests/` 回归验证。运行游戏只需 Python 3.11+ 标准库。
+自动通关用于流程、恢复和数据比较。真人爽感与五小时节奏不能靠通关率证明。结构：`core/`规则、`content/`内容、`saves/`存档、`client/`中文终端、`tools/`试玩/验收/同步、`tests/`回归。
 
-当前为四职业1–8级、七站战役，包含路线分支、营地、金币、商店与最终 Boss。六职业、20场战役和完整人工节奏验收仍为长期目标。
+## GitHub换机传档
 
-- [终端玩法](docs/terminal.md)
-- [战役规则](docs/campaign.md)
+先退出游戏，再手动同步：`./run-local.ps1 -UploadSave`上传；另一台电脑先更新代码，再执行 `./run-local.ps1 -DownloadSave`下载，随后 `./run-local.ps1`继续。也可 `python -m tools.sync_saves push` / `pull`。需要Git与仓库读写权限，复用本机Git登录；存档在独立 `game-saves` 分支。
+
+下载前自动备份旧档，进度分歧拒绝静默覆盖；明确采用来源时使用 `-Replace` / `--replace`。断网可本地游玩。
+
+- [战役与经济](docs/campaign.md)
 - [成长与装备](docs/growth.md)
-- [规则差异](docs/rules.md)
+- [终端操作](docs/terminal.md)
+- [规则来源与差异](docs/rules.md)
 - [实施路线](docs/roadmap.md)
-- [验证记录](docs/verification.md)
+- [本地运行与换机](docs/deployment.md)
+- [历史验证记录](docs/verification.md)

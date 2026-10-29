@@ -86,3 +86,23 @@ def test_audit_keeps_policy_labels_and_errors_in_separate_cases():
     assert result['total'] == 2 and result['completed'] == 1
     assert [r['policy'] for r in reports] == ['offense', 'support']
     assert result['runs'][0]['error'] == 'at crossfire, round 10'
+
+
+def test_audit_reports_long_battles_and_observed_casualties():
+    from tools.audit_campaign import diagnostics
+    result=diagnostics([dict(party='rogues',route='road',seed=42,battles=[
+        dict(node='heart',rounds=23,activity={'unused_action_ends':0},report={'downed':2,'deaths':1})])])
+    assert result['battles']==1 and result['max_rounds']==23 and result['deaths']==1
+    assert result['nodes']['heart']['median']==23
+    assert result['suspect_stalls'][0]['unused_action_ends']==0  # A flag is not proof of a deadlock.
+
+
+def test_shopping_policy_equips_the_bought_rapier_before_travel():
+    from tools.play_campaign import play
+    def checkpoint(old,operation,payload,state,events):
+        if isinstance(payload,dict) and payload.get('type')=='travel':
+            assert state['actors']['P1']['equipment']['main_hand']=='rapier'
+            assert 'rapier' in state['actors']['P1']['inventory']
+            raise StopIteration('first equipment checkpoint complete')
+    with pytest.raises(StopIteration):
+        play(['rogue']*4,seed=42,shopping=True,on_step=checkpoint)

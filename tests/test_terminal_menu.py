@@ -44,6 +44,8 @@ def select_action(client, command):
     if client.ui.selected != command["actor"] or client.ui.stage != "actions":
         select_actor(client, command["actor"])
     client.handle(action_number(client, command))
+    if client.ui.stage == 'slots':
+        client.handle(str(command.get('slot', client.ui.action['command']['slot'])))
 
 
 def preview_command(client, command):

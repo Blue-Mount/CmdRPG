@@ -50,7 +50,7 @@ class TerminalMenu:
             reactor = next((a for a in self.client.view.get("party", []) if a["id"] == pending["reactor"]), {})
             who = "%s %s" % (pending["reactor"], reactor.get("name", ""))
         action = self.action.get("name", "") if self.action else ""
-        stages = {"home": "选择角色", "actions": "选择行动或技能", "target": "选择目标",
+        stages = {"home": "选择角色", "actions": "选择行动或技能", "slots": "选择法术位环级", "target": "选择目标",
                   "move": "选择目的地", "confirm": "确认执行", "reaction": "选择反应", "recovery": "恢复回执",
                   "settlement": "战后结算", "growth":"成长与装备", "shop_party": "选择购买队员", "shop": "营地商店"}
         return "【%s%s · %s】" % (who, " · " + action if action else "", stages[self.stage])
@@ -114,6 +114,8 @@ class TerminalMenu:
                 menu = {str(n): ("action", entry) for n, entry in enumerate(actor.get("menu_actions", []), 1)}
                 for n, name in enumerate(("map", "party", "log", "rules", "help"), len(menu) + 1):
                     menu[str(n)] = ("read", name)
+        elif self.stage == 'slots':
+            menu = {str(option['slot']): ('slot', option) for option in self.action['slot_options']}
         elif self.stage in ("target", "move"):
             menu = {str(n): ("entry", entry) for n, entry in enumerate(self.entries, 1)}
         elif self.stage == "reaction":
@@ -136,7 +138,7 @@ class TerminalMenu:
                 lines.extend("   " + line for line in render_actor_card(actor).splitlines()[1:])
             lines.append("5 地图  6 队伍资源  7 详细日志  8 操作帮助")
             if "9" in menu:
-                lines.append('9 战败重试' if menu['9'][0] == 'retry' else '9 新开七站远征战役（保留本局）')
+                lines.append('9 战败重试' if menu['9'][0] == 'retry' else '9 新开十四站远征战役（保留本局）')
         elif self.stage == "settlement":
             campaign = client.view.get('campaign')
             if campaign:
@@ -151,12 +153,12 @@ class TerminalMenu:
                 lines.append("本场摘要：%s 回合；倒地 %s 次，死亡 %s；消耗法术位 %s、药水 %s；双方累计伤害 %s、治疗 %s。" % (client.view.get("round", "?"), summary.get("downed", 0), summary.get("deaths", 0), summary.get("slots", 0), summary.get("potions", 0), summary.get("damage", 0), summary.get("healing", 0)))
             remaining = client.view.get("short_rests", 0)
             lines.append("1 全队短休（剩余 %s 次%s）" % (
-                remaining, "，已用完" if remaining <= 0 else "；不恢复法术位" if campaign else "；仅用于演示，无后续战斗"))
+                remaining, "，已用完" if remaining <= 0 else "；恢复契约位，不恢复普通法术位" if campaign else "；仅用于演示，无后续战斗"))
             lines.append("2 查看全队资源  3 新开一场战斗（同阵容、新周目）")
             lines.append("4 查看地图  5 详细日志  6 战利品说明")
             lines.append("  ".join(n+" "+v+" 成长与装备" for n,(k,v) in menu.items() if k=="growth"))
             if "11" in menu: lines.append("11 沿用当前成长与装备重新演练（全部资源刷新）")
-            lines.append('12 新开七站远征战役（保留本局）')
+            lines.append('12 新开十四站远征战役（保留本局）')
             for n, (kind, entry) in sorted(menu.items(), key=lambda pair: int(pair[0])):
                 if kind == 'campaign_command':
                     lines.append(n + ' ' + entry[1] + ('（20金币；全队复苏、生命/法术位/职业资源全恢复）' if entry[0]['type'] == 'camp' else ''))
@@ -186,6 +188,12 @@ class TerminalMenu:
             lines.append("  ".join("%s %s" % (n, reads[value]) for n, (kind, value) in menu.items() if kind == "read"))
             if not self.actor().get("menu_actions"):
                 lines.append("服务端未提供中文行动菜单，请升级服务端；原快捷命令仍可使用。")
+        elif self.stage == 'slots':
+            lines.append('输入要消耗的环级；本环施放或升环均消耗一个该环法术位。')
+            for option in self.action['slot_options']:
+                lines.append('%s. %s环 · 剩余%s · %s%s' % (option['slot'],option['slot'],option['remaining'],
+                    '升环' if option['upcast'] else '本环','（已耗尽，不可用）' if not option['available'] else ''))
+                lines.append('   ' + option['effect'])
         elif self.stage in ("target", "move"):
             lines.append(render_action_card(client.view, self.selected, self.action))
             if self.stage == "move":
@@ -208,7 +216,7 @@ class TerminalMenu:
             lines.append("9 恢复未确认请求；已保存原请求编号，请先恢复回执。")
         elif self.stage == "confirm":
             lines.append("c 确认执行；数字不会执行行动。")
-        lines.append(("0 返回  " if self.stage in ("actions", "target", "move", "confirm", "growth", "shop_party", "shop") else "") + "q 退出（已执行动作自动保存）")
+        lines.append(("0 返回  " if self.stage in ("actions", "slots", "target", "move", "confirm", "growth", "shop_party", "shop") else "") + "q 退出（已执行动作自动保存）")
         self.revision = client.view.get("revision") if self.stage not in ("confirm", "target", "move") else self.revision
 
         return "\n".join(lines)
@@ -240,10 +248,29 @@ class TerminalMenu:
         if not entry.get("available"):
             raise ParseError("%s不可用：%s" % (entry["name"], entry.get("reason", "当前资源或阶段不满足")))
         self.action = deepcopy(entry)
-        command = deepcopy(entry["command"])
-        mode = entry.get("target_mode", "none")
+        if len(entry.get('slot_options', [])) > 1:
+            self.stage = 'slots'
+            self.show()
+            return
+        self.open_action()
+
+    def select_slot(self, option):
+        self.check_revision()
+        if not option['available']:
+            raise ParseError('该环法术位已耗尽，请选择其他环级。')
+        self.action['command']['slot'] = option['slot']
+        self.action['description'] = '%s环：%s' % (option['slot'],option['effect'])
+        self.action['cost'] = {key:value for key,value in self.action['cost'].items() if not key.startswith('slot_')}
+        self.action['cost']['slot_%s' % option['slot']] = 1
+        self.action['remaining'] = {key:value for key,value in self.action['remaining'].items() if not key.startswith('slot_')}
+        self.action['remaining']['slot_%s' % option['slot']] = option['remaining']
+        self.open_action()
+
+    def open_action(self):
+        command = deepcopy(self.action['command'])
+        mode = self.action.get('target_mode', 'none')
         if mode == "none":
-            self.preview(command, "actions")
+            self.preview(command, 'slots' if len(self.action.get('slot_options', [])) > 1 else 'actions')
             return
         result = self.client.transport.options(self.client.run_id, command)
         self.client.refresh(display=False)
@@ -306,7 +333,10 @@ class TerminalMenu:
             if self.stage in ("home", "settlement", "reaction", "actions"):
                 self.action = None
         elif self.stage in ("target", "move"):
-            self.stage = "actions"
+            self.stage = 'slots' if len(self.action.get('slot_options', [])) > 1 else 'actions'
+            if self.stage == 'actions': self.action = None
+        elif self.stage == 'slots':
+            self.stage = 'actions'
             self.action = None
         elif self.stage == "growth":
             self.stage = "settlement"
@@ -406,6 +436,8 @@ class TerminalMenu:
             self.check_revision(); self.action={'name':value[0]}; self.preview(value[1],'growth'); self.show()
         elif kind == "action":
             self.select_action(value)
+        elif kind == 'slot':
+            self.select_slot(value)
         elif kind == "entry":
             self.select_entries([int(line)])
         elif kind == "read":
@@ -465,8 +497,8 @@ class TerminalMenu:
                                  "templates": [a["template"] for a in self.client.view.get("party", [])]}
             if kind == 'campaign_new':
                 self.confirmation['campaign'] = True
-                self.action = {'name': '新开七站远征战役'}
-                self.client.output('七站远征：前哨 → 旧道/山脊 → 要塞 → 熔炉 → 断桥交火 → 回响大厅 → 最终Boss。四人从1级成长至8级。')
+                self.action = {'name': '新开十四站远征战役'}
+                self.client.output('十四站远征：前哨 → 旧道/山脊 → 蓄池 → 铸场 → 要塞 → 调度场/采场 → 书库 → 熔炉 → 观测台 → 堡垒 → 断桥 → 圣所 → 大厅 → 最终Boss。四人从1级成长至8级。')
             self.client.output("新建独立周目，使用相同的四人职业阵容，生命和资源从初始模板重新开始。")
             self.client.output("原周目已保留，可用 --run %s 恢复；新战斗开始后自动保存。" % self.client.run_id)
             self.show()

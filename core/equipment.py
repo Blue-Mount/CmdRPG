@@ -27,13 +27,13 @@ def stats(actor, items):
     eq = actor.get("equipment", {})
     untrained_armor = any(items.get(eq.get(slot), {}).get("category") not in PROF[actor["template"]]
                           for slot in ("armor", "off_hand") if eq.get(slot))
-    martial = actor["template"] == "monk" and not eq.get("armor") and not eq.get("off_hand") and category == 'simple'
+    martial = actor["template"] == "monk" and not eq.get("armor") and not eq.get("off_hand") and category == 'simple' and weapon.get('range', 1.5) <= 1.5
     spell_mod = mod(actor["stats"][actor["spell_stat"]]) if actor.get("spell_stat") else 0
     return dict(damage_dice=(("1d6" if actor["level"] >= 3 else "1d4") if martial else "0d4+1")
                 if actor["weapon"] == "monk_fists" else weapon["dice"],
                 damage_bonus=modifier + bonus(actor, items, "damage_bonus"),
                 attack_bonus=(proficiency(actor) if trained else 0) + modifier + bonus(actor, items, "attack_bonus"),
-                ac=actor["ac"], speed=actor["speed"], weapon_proficient=trained,
+                ac=actor["ac"], speed=actor["speed"], weapon_range=weapon.get("range", 1.5), weapon_proficient=trained,
                 two_handed=bool(weapon.get("two_handed")), martial_arts=martial,
                 casting_allowed=not untrained_armor, attack_disadvantage=untrained_armor,
                 spell_attack=proficiency(actor) + spell_mod + bonus(actor, items, "spell_attack") if actor.get("spell_stat") else None,

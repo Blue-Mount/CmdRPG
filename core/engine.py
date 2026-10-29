@@ -8,6 +8,7 @@ from .content import load_content
 from . import dice, spatial
 from .growth import GrowthMixin, DATA, SELF, FRIENDLY, PROF, proficiency, snapshot, recalculate, LEVEL_CAP, EQUIPMENT_SLOTS, CONTENT_VERSION, RULES_VERSION
 from .advanced import AdvancedMixin
+from .expansion import ExpansionMixin, CLASS_NAMES, ABILITIES as EXPANSION_ABILITIES
 from .campaign import CampaignMixin, load_campaign, COMMANDS as CAMPAIGN_COMMANDS, CONTENT_VERSION as CAMPAIGN_VERSION
 from .tactics import TacticsMixin, TACTICAL
 from .equipment import bonus as equipment_bonus
@@ -24,7 +25,7 @@ def modifier(score):
     return (score - 10) // 2
 
 
-class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
+class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
     def __init__(self, content=None):
         self.content = content if content is not None else load_content()
         self.content = deepcopy(self.content)
@@ -32,12 +33,18 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         self.content["items"].update(deepcopy(DATA["items"]))
         self.content["version"]=CONTENT_VERSION
         self.content["rules_version"]=RULES_VERSION
+        self._install_classes()
         self.campaign_content = load_campaign()
+
+    def _install_classes(self):
+        for cid, (name, subclass) in CLASS_NAMES.items():
+            s = DATA["classes"][cid]["1"]
+            self.content["classes"][cid] = dict(name=name, subclass=subclass, **{k: deepcopy(s[k]) for k in ("stats", "hp", "speed", "spell_stat", "abilities", "slots", "resources", "save_proficiencies")}, ac=10 + modifier(s["stats"]["dex"]), attack_stat="dex", weapon=s["equipment"]["main_hand"])
 
     def _check_version(self, state):
         if state.get('campaign') and state['campaign'].get('version') != self.campaign_content['version']:
             raise GameError('version_mismatch', '战役版本不匹配，请使用对应版本服务。')
-        if state.get('campaign') and (type(state['campaign'].get('edition', 1)) is not int or state['campaign'].get('edition', 1) not in (1, 2)):
+        if state.get('campaign') and (type(state['campaign'].get('edition', 1)) is not int or state['campaign'].get('edition', 1) not in (1, 2, 3)):
             raise GameError('version_mismatch', '战役路线版本不受支持。')
         if any(a.get("growth_version") not in (None,1) for a in state.get("actors",{}).values()):
             raise GameError("version_mismatch","成长存档版本不受支持，请使用对应版本服务。")
@@ -45,6 +52,9 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             return  # Explicit legacy adapter: no mutation or implicit resource grants.
         previous = '0.4.0-m4' if state.get('campaign') else '0.3.0-m3'
         if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == (previous, '0.3.0-provisional', 1):
+            return
+        old_content = '0.6.0-campaign' if state.get('campaign') else '0.6.0-m6'
+        if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == (old_content, '0.6.0-provisional', 1):
             return
         previous = '0.5.0-campaign' if state.get('campaign') else '0.5.0-m5'
         if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == (previous, '0.5.0-provisional', 1):
@@ -65,7 +75,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         if not isinstance(name, str) or not name.strip() or len(name) > 40:
             raise GameError("invalid_party", "队伍名应为 1 至 40 个字符。")
         if not isinstance(templates, list) or len(templates) != 4 or any(not isinstance(t, str) or t not in self.content["classes"] for t in templates):
-            raise GameError("invalid_party", "请选择恰好四个已实现职业：fighter、monk、wizard、cleric。")
+            raise GameError("invalid_party", "请选择恰好四个已实现职业：fighter、monk、wizard、cleric、rogue、warlock。")
         if seed is not None and (type(seed) is not int or not 0 <= seed <= dice.MASK):
             raise GameError("invalid_seed", "种子应为 0 至 2^64-1 的整数。")
         state = {
@@ -107,7 +117,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             }
         for entry in self.content['encounter']['enemies']:
             data = self.content['enemies'][entry['prototype']]
-            for field in ('resistances', 'spell', 'boss'):
+            for field in ('resistances', 'spell', 'boss', 'attacks', 'support'):
                 if field in data:
                     state['actors'][entry['id']][field] = deepcopy(data[field])
         if levels is not None:
@@ -218,6 +228,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 if 'equipment' in result:
                     result['equipment'] = dict.fromkeys(EQUIPMENT_SLOTS) | result['equipment']
                 result['passives'] = deepcopy(actor.get('passives', []))
+                result['sneak_used'] = actor.get('sneak_used', False)
                 result['growth_history'] = deepcopy(actor.get('growth_history', []))
                 result['last_growth'] = deepcopy(actor.get('last_growth'))
                 from .equipment import stats
@@ -235,7 +246,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 party.append(result)
             else:
                 result["range"] = actor.get("range", 1.5)
-                for field in ('resistances', 'spell', 'save_proficiencies'):
+                for field in ('resistances', 'spell', 'save_proficiencies', 'attacks', 'support'):
                     if field in actor: result[field] = deepcopy(actor[field])
                 if actor.get('boss'):
                     result['boss_phase'] = actor.get('boss_phase', 1)
@@ -297,7 +308,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             if not reason and ability_id in ("flurry","patient_defence","unarmed_strike") and (actor.get("equipment",{}).get("armor") or actor.get("equipment",{}).get("off_hand")): reason="武艺需要无甲无盾"
             if not reason and ability.get("resource") and not actor["resources"].get(ability["resource"],0): reason="职业资源不足"
             if not reason and ability["level"] and actor.get("growth_version") and ability_id not in actor.get("prepared",[]): reason="法术尚未准备"
-            if not reason and (ability["level"] or ability_id in ("fire_bolt","sacred_flame")):
+            if not reason and (ability["level"] or ability_id in ("fire_bolt","sacred_flame","eldritch_blast")):
                 try: self._casting_equipment(actor)
                 except GameError as exc: reason=exc.message
             entries.append({"id": ability_id, **deepcopy(ability), "available": not reason, "reason": reason})
@@ -307,6 +318,27 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         """Menus choose the cheapest slot; explicit command slots still work."""
         return min((int(slot) for slot, count in actor["slots"].items()
                     if count > 0 and int(slot) >= level), default=None)
+
+    def _spell_scaling(self, actor, ability_id, slot):
+        """Target-independent, truthful consequences of selecting a spell slot."""
+        healing = modifier(actor['stats'][actor['spell_stat']]) + equipment_bonus(actor, self.content['items'], 'healing_bonus')
+        healing += 2 + slot if actor['template'] == 'cleric' else 0
+        effects = {
+            'magic_missile': f'{slot+2}枚飞弹，每枚1d4+1力场，可逐枚分配',
+            'scorching_ray': f'{slot+1}条射线，每条2d6火焰，独立攻击并分配',
+            'fireball': f'{slot+5}d6火焰，6米，敏捷豁免成功减半' + ('；塑能保护友军' if actor['template']=='wizard' and actor['level']>=2 else '；会伤及友军'),
+            'shatter': f'{slot+1}d8雷鸣，3米，体质豁免成功减半；会伤及友军',
+            'healing_word': f'单目标恢复{slot}d4{healing:+d}生命',
+            'cure_wounds': f'单目标恢复{slot}d8{healing:+d}生命',
+            'mass_healing_word': f'范围内可见队友各恢复{slot-2}d4{healing:+d}生命',
+            'bless': f'至多{slot+2}名队友，攻击/豁免+1d4，专注10轮',
+            'aid': f'范围内可见队友生命上限/当前+{5*(slot-1)}；已有更低环效果仅补差额',
+            'false_life': f'自身1d4+{4+5*(slot-1)}临时生命，与当前取高、不叠加',
+            'mage_armor': '效果不随环级增强：无甲目标AC至少13+敏捷，本场有效',
+            'death_ward': '效果不随环级增强：本场一次致命伤后保留1生命',
+            'blight': '8d8黯蚀，体质豁免成功减半（本包最高4环）',
+        }
+        return effects[ability_id]
 
     def _skill_summary(self, actor, ability_id, slot=None):
         """Brief gameplay effects; detailed content notes remain in actions."""
@@ -339,7 +371,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         entries = []
         ordinary = [
             ("move", "移动", "沿可通行路径移动；先查看可达范围与目的地。", {}, "move"),
-            ("attack", "普通攻击", "使用当前武器攻击相邻敌人。", {"action": 1}, "enemy"),
+            ("attack", "普通攻击", "使用当前武器攻击；射程与贴身劣势以目标预览为准。", {"action": 1}, "enemy"),
             ("dash", "疾走", f"额外获得 {actor['speed']:g} 米移动。", {"action": 1}, "none"),
             ("disengage", "撤离", "本回合移动不触发借机攻击。", {"action": 1}, "none"),
             ("dodge", "闪避", "直到下回合，攻击自己具有劣势。", {"action": 1}, "none"),
@@ -370,11 +402,11 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         for ability in self.actions(state, actor_id):
             ability_id = ability["id"]
             mode = ("none" if ability_id == "second_wind" or ability_id in SELF else
-                    "allocation" if ability_id in ("magic_missile", "scorching_ray") else
-                    "ground" if ability_id == "fireball" else
+                    "allocation" if ability_id in ("magic_missile", "scorching_ray", "eldritch_blast") else
+                    "ground" if ability_id in ("fireball", "shatter") else
                     "multi" if ability_id == "bless" else
                     "party" if ability_id in ("healing_word", "cure_wounds", "mage_armor") or ability_id in FRIENDLY else "enemy")
-            kind = "ability" if ability_id in ("second_wind", "unarmed_strike") or (ability_id in DATA["abilities"] and not ability["level"]) else "cast"
+            kind = "cast" if ability_id == "eldritch_blast" else "ability" if ability_id in ("second_wind", "unarmed_strike") or (ability_id in DATA["abilities"] and not ability["level"]) else "cast"
             command = {"type": kind, "actor": actor_id, "ability": ability_id}
             cost = {} if ability["cost"]=="free" else {ability["cost"]: 1}
             if ability_id == "stunning_strike" and actor.get("extra_attacks", 0): cost = {}
@@ -400,7 +432,12 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             if mode == "multi":
                 entry["max_targets"] = 3 + (slot or ability["level"]) - 1
             if mode == "allocation":
-                entry["max_targets"] = (slot or ability["level"]) + (2 if ability_id == "magic_missile" else 1)
+                entry["max_targets"] = (2 if actor["level"] >= 5 else 1) if ability_id == "eldritch_blast" else (slot or ability["level"]) + (2 if ability_id == "magic_missile" else 1)
+            if ability['level']:
+                entry['slot_options'] = [dict(slot=int(rank), remaining=actor['slots'].get(rank, 0),
+                    available=actor['slots'].get(rank, 0)>0, upcast=int(rank)>ability['level'],
+                    effect=self._spell_scaling(actor, ability_id, int(rank)))
+                    for rank in sorted(actor.get('max_slots', actor['slots']), key=int) if int(rank)>=ability['level']]
             entries.append(entry)
         return entries
 
@@ -444,9 +481,9 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 raise GameError("invalid_slot", "没有指定环阶的合法法术位。")
             if multi:
                 response["max_targets"] = 3 + base.get("slot", ability["level"]) - 1
-            if ability_id in ("magic_missile", "scorching_ray"):
-                response["max_targets"] = base.get("slot", ability["level"]) + (2 if ability_id == "magic_missile" else 1)
-            if ability_id == "fireball":
+            if ability_id in ("magic_missile", "scorching_ray", "eldritch_blast"):
+                response["max_targets"] = (2 if actor["level"] >= 5 else 1) if ability_id == "eldritch_blast" else base.get("slot", ability["level"]) + (2 if ability_id == "magic_missile" else 1)
+            if ability_id in ("fireball", "shatter"):
                 response["ground_targeting"] = True
         for target in state["actors"].values():
             if (target["side"] != side or not self._visible(state, target)
@@ -595,6 +632,8 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         kind = command["type"]
         if kind in ("cast", "ability") and isinstance(command.get("ability"), str) and command["ability"] in TACTICAL:
             return self._tactical_preview(state, command)
+        if kind in ("cast", "ability") and isinstance(command.get("ability"), str) and command["ability"] in EXPANSION_ABILITIES:
+            return self._expansion_preview(state, command)
         if kind in CAMPAIGN_COMMANDS:
             return self._campaign_preview(state, command)
         if kind=="practice": return self._practice_preview(state,command)
@@ -622,7 +661,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 raise GameError("invalid_rest", "全队短休不可用：需要先取得战斗胜利。")
             if state["short_rests"] <= 0:
                 raise GameError("invalid_rest", "全队短休不可用：本周目的两次短休已用完。")
-            result["description"] = "全队短休：所有未死亡队员恢复一半最大生命（向上取整，最多到生命上限）与短休资源；不恢复法术位、药水，也不会复活已死亡队员。"
+            result["description"] = "全队短休：所有未死亡队员恢复一半最大生命（向上取整，最多到生命上限）与短休资源；恢复邪术师契约法术位，不恢复普通法术位、药水，也不会复活已死亡队员。"
             if not state.get('campaign'):
                 result["warnings"].append("本切片没有后续战斗，短休仅用于演示；仍会消耗次数。")
             result["cost"] = {"short_rests": 1}
@@ -638,7 +677,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 result["rest_effects"].append({"actor": member["id"], "name": member["name"],
                                                "hp_before": member["hp"], "hp_after": after,
                                                "max_hp": member["max_hp"], "healing": after - member["hp"],
-                                               "resources_restore": restored})
+                                               "resources_restore": restored, "slots_restore": {k: v - member["slots"].get(k, 0) for k,v in member["max_slots"].items()} if member["template"] == "warlock" else {}})
             return result
         if state["phase"] != "combat":
             raise GameError("not_in_combat", "战斗已结束；战败可 retry，另开周目使用 --new。")
@@ -685,14 +724,19 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             result["cost"] = {"action": 1}
         if kind == "attack":
             target = self._target(state, command.get("target"), "enemy")
-            self._in_range(state, actor, target, 1.5)
-            adv, dis, height = self._attack_context(state, actor, target)
+            reach = self.content["items"][actor["weapon"]].get("range", 1.5)
+            self._in_range(state, actor, target, reach)
+            adv, dis, height = self._attack_context(state, actor, target, reach > 1.5)
             bonus = self._weapon_proficiency(actor) + modifier(actor["stats"][actor["attack_stat"]]) + height + equipment_bonus(actor, self.content["items"], "attack_bonus")
             weapon = deepcopy(self.content["items"][actor["weapon"]])
             if actor["weapon"]=="monk_fists": weapon["dice"]=self._unarmed_dice(actor)
             damage_bonus = modifier(actor["stats"][actor["attack_stat"]]) + equipment_bonus(actor, self.content["items"], "damage_bonus")
             result.update(description=f"{weapon['name']}攻击 {target['id']} {target['name']}；命中加值 {bonus:+d}，对方 AC {target['ac']}；命中伤害 {weapon['dice']}{damage_bonus:+d}。", targets=[target["id"]], hit_probability=dice.hit_probability(bonus, target["ac"], adv, dis, self._blessed(actor)))
-            result["attack_roll"] = self._attack_roll_info(state, actor, target)
+            result["attack_roll"] = self._attack_roll_info(state, actor, target, reach > 1.5)
+            sneak = self._sneak_attack(state, actor, target)
+            result["sneak_dice"] = f"{sneak}d6" if sneak else None
+            if sneak:
+                result["description"] += f" 本回合偷袭可用：命中追加{sneak}d6同类型伤害（暴击翻倍骰数）。"
             if 'divine_strike' in actor.get('passives', []) and not actor.get('divine_strike_used'):
                 result['description'] += ' 本回合神圣打击可用：命中追加1d8光耀（暴击翻倍骰数）。'
         elif kind in ("cast", "ability"):
@@ -707,7 +751,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             self._need(actor, ability["cost"])
             result["cost"] = {ability["cost"]: 1}
             spell_level = ability["level"]
-            if spell_level or ability_id in ("fire_bolt","sacred_flame"):
+            if spell_level or ability_id in ("fire_bolt","sacred_flame","eldritch_blast"):
                 self._casting_equipment(actor)
                 if actor.get("growth_version") and spell_level and ability_id not in actor.get("prepared",[]):
                     raise GameError("not_prepared","法术尚未准备。")
@@ -744,6 +788,8 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                     raise GameError("monk_armor","武艺需要无甲无盾。")
                 if ability_id == "unarmed_strike" and self.content["items"][actor["weapon"]].get("category", "martial" if actor["weapon"]=="longsword" else "simple")=="martial":
                     raise GameError("invalid_ability","武艺附赠打击需要先用武僧武器攻击。")
+                if ability_id == "unarmed_strike" and self.content['items'][actor['weapon']].get('range', 1.5) > 1.5:
+                    raise GameError('invalid_ability', '短弓不属于本包武僧武器，不能解锁武艺附赠打击。')
                 if ability_id == "unarmed_strike" and not actor["attacked"]:
                     raise GameError("invalid_ability", "武僧需先在本回合使用攻击动作，才能附赠徒手攻击。")
                 targets = [target]
@@ -799,7 +845,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         for reactor in state["actors"].values():
             if (reactor["side"] == actor["side"] or not self._alive(reactor)
                     or not self._visible(state, reactor) or reactor["budgets"]["reaction"] <= 0
-                    or (reactor["side"] == "enemy" and reactor.get("range", 1.5) > 1.5)):
+                    or (reactor.get("range", 1.5) > 1.5 or self.content["items"].get(reactor.get("weapon"), {}).get("range", 1.5) > 1.5)):
                 continue
             if any(spatial.reach_distance(state["map"], reactor["position"], start) <= 1.5
                    < spatial.reach_distance(state["map"], reactor["position"], end)
@@ -838,7 +884,9 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 if actor["side"] == "party" and "dead" not in actor["conditions"]:
                     self._heal(work, actor, (actor["max_hp"] + 1) // 2, "短休")
                     actor["resources"].update({k:v for k,v in actor["max_resources"].items() if k!="arcane_recovery"})
-            self._emit(work, "rest", f"全队短休完成，剩余 {work['short_rests']} 次；法术位、药水未恢复，已死亡队员不会复活。")
+                    if actor["template"] == "warlock":
+                        actor["slots"] = deepcopy(actor["max_slots"])
+            self._emit(work, "rest", f"全队短休完成，剩余 {work['short_rests']} 次；普通法术位、药水未恢复；邪术师契约法术位已恢复，已死亡队员不会复活。")
         else:
             actor = work["actors"][command["actor"]]
             if kind == "move":
@@ -889,6 +937,8 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
 
     def _cast(self, state, actor, command, target_ids):
         ability_id = command["ability"]
+        if ability_id in EXPANSION_ABILITIES - {"shatter"}:
+            return self._expansion_cast(state, actor, command)
         if ability_id in TACTICAL:
             return self._tactical_cast(state, actor, command)
         if ability_id in DATA["abilities"]:
@@ -953,7 +1003,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
     def _weapon_attack(self, state, attacker, target, reaction=False):
         if attacker["side"] == "party":
             item = self.content["items"][attacker["weapon"]]
-            expression, damage_type, ranged = item["dice"], item["damage_type"], False
+            expression, damage_type, ranged = item["dice"], item["damage_type"], item.get("range", 1.5) > 1.5
             if attacker['weapon']=='monk_fists': expression=self._unarmed_dice(attacker)
         else:
             expression, damage_type = attacker["dice"], attacker["damage_type"]
@@ -983,6 +1033,14 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             amount, detail = dice.roll(state, expression, critical)
             extra = ability_bonus if damage_modifier is None else damage_modifier
             if weapon_attack: extra += equipment_bonus(attacker, self.content["items"], "damage_bonus")
+            if weapon_attack and not reaction:
+                sneak = self._sneak_attack(state, attacker, target)
+                if sneak:
+                    sneak_amount, sneak_detail = dice.roll(state, f"{sneak}d6", critical)
+                    amount += sneak_amount
+                    detail["sneak_attack"] = sneak_detail
+                    attacker["sneak_used"] = True
+                    self._emit(state, "effect", f"{attacker['id']} 偷袭：额外{sneak}d6，与本次武器伤害一起结算。")
             detail["ability_modifier"] = extra
             self._damage(state, target, max(0, amount + extra), damage_type, "借机攻击" if reaction else "攻击", detail, critical, source_actor=attacker['id'])
             if weapon_attack and not reaction and 'divine_strike' in attacker.get('passives', []) and not attacker.get('divine_strike_used'):
@@ -1056,7 +1114,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         if target['hp'] == 0 and previous_hp > 0 and target['effects'].pop('death_ward', None):
             target['hp'] = 1
             self._emit(state, 'effect', f"{target['id']} 死亡防护消耗：本次伤害后保留1生命。")
-        damage_label = {"force":"力场", "fire":"火焰", "slashing":"挥砍", "piercing":"穿刺", "radiant":"光耀", "bludgeoning":"钝击"}.get(damage_type, damage_type)
+        damage_label = {"force":"力场", "thunder":"雷鸣", "necrotic":"黯蚀", "fire":"火焰", "slashing":"挥砍", "piercing":"穿刺", "radiant":"光耀", "bludgeoning":"钝击"}.get(damage_type, damage_type)
         self._emit(state, "damage", f"{target['id']} 受到 {source} 的 {amount} 点 {damage_label} 伤害（临时生命吸收 {temporary}），生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), raw_damage=original, applied_damage=amount, absorbed=temporary, hp_lost=previous_hp-target['hp'], source_actor=source_actor, damage_type=damage_type)
         self._boss_transition(state, target)
         if target["hp"] == 0 and amount > 0:
@@ -1064,6 +1122,10 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 target["conditions"] = ["dead"]
                 target["ended"] = True
                 self._emit(state, "defeat_enemy", f"{target['id']} 被击败。")
+                killer = state["actors"].get(source_actor, {})
+                if previous_hp > 0 and killer and self._alive(killer) and "dark_blessing" in killer.get("passives", []):
+                    killer["temp_hp"] = max(killer.get("temp_hp", 0), max(1, killer["level"] + modifier(killer["stats"]["cha"])))
+                    self._emit(state, "effect", f"{killer['id']} 邪魔祝福：临时生命{ killer['temp_hp']}（取较高值，不叠加）。")
             else:
                 if not was_downed:
                     target["conditions"] = [c for c in target["conditions"] if c not in ("dodge", "disengaged", "stable")]
@@ -1106,10 +1168,11 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
 
     def _start_actor(self, state, actor):
         actor["conditions"] = [c for c in actor["conditions"] if c not in ("dodge", "disengaged")]
-        actor["budgets"] = {"action": 1, "bonus": 1, "reaction": 1, "movement": actor["speed"]}
+        actor["budgets"] = {"action": 1, "bonus": 2 if "fast_hands" in actor.get("passives", []) else 1, "reaction": 1, "movement": actor["speed"]}
         actor["attacked"] = False
         actor["extra_attacks"] = 0
         actor['divine_strike_used'] = False
+        actor['sneak_used'] = False
         actor["last_turn_round"] = state["round"]
         actor["ended"] = not self._alive(actor)
         if "downed" in actor["conditions"] and "stable" not in actor["conditions"]:
@@ -1144,7 +1207,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             if state.get('campaign'):
                 self._campaign_reward(state)
             else:
-                self._emit(state, "victory", "前哨战胜利！可进入成长、装备、独立演练，或新开七站远征战役。")
+                self._emit(state, "victory", "前哨战胜利！可进入成长、装备、独立演练，或新开十四站远征战役。")
         elif not living_party:
             state["phase"], state["outcome"] = "defeated", "defeated"
             state["pending"] = None
@@ -1201,7 +1264,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                     if reactor["id"] in handled or reactor["side"] == mover["side"] or not self._alive(reactor) or reactor["budgets"]["reaction"] <= 0:
                         continue
                     # Ranged-only enemies do not invent a melee reaction weapon.
-                    if reactor["side"] == "enemy" and reactor.get("range", 1.5) > 1.5:
+                    if reactor.get("range", 1.5) > 1.5 or self.content["items"].get(reactor.get("weapon"), {}).get("range", 1.5) > 1.5:
                         continue
                     near = spatial.reach_distance(state["map"], reactor["position"], mover["position"]) <= 1.5
                     leaving = spatial.reach_distance(state["map"], reactor["position"], destination) > 1.5
@@ -1276,6 +1339,8 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
         return [a for a in state["actors"].values() if a["side"] == "party" and self._alive(a) and spatial.distance(state["map"], enemy["position"], a["position"]) <= 18 and spatial.line_of_sight(state["map"], enemy["position"], a["position"])]
 
     def _enemy_turn(self, state, enemy):
+        if self._support_turn(state, enemy):
+            return
         targets = self._enemy_targets(state, enemy)
         if not targets:
             enemy["ended"] = True
@@ -1289,6 +1354,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
             return
         occupied = {a["position"] for a in state["actors"].values() if a["id"] != enemy["id"] and "dead" not in a["conditions"] and (a["side"] == "enemy" or (spatial.distance(state["map"], enemy["position"], a["position"]) <= 18 and spatial.line_of_sight(state["map"], enemy["position"], a["position"])))}
         candidates = []
+        safe_routes = spatial.paths(state["map"], enemy["position"], occupied | (set(state["map"].get("hazards", {})) - {enemy["position"]}))
         for target in targets:
             for y in range(state["map"]["height"]):
                 for x in range(state["map"]["width"]):
@@ -1299,7 +1365,7 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                         continue
                     if (spatial.reach_distance if enemy["range"] <= 1.5 else spatial.distance)(state["map"], cell, target["position"]) > enemy["range"] or not spatial.line_of_sight(state["map"], cell, target["position"]):
                         continue
-                    route = spatial.path(state["map"], enemy["position"], cell, occupied, avoid_hazards=True)
+                    route = safe_routes.get(cell)
                     if route:
                         candidates.append((route[1], target["hp"], cell, route[0]))
         if not candidates:
@@ -1328,12 +1394,12 @@ class Engine(AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
                 if enemy.get('boss_phase') == 2:
                     self._boss_attack(state, enemy, target)
                 elif enemy.get('spell'):
-                    spell = enemy['spell']
-                    self._emit(state, 'ability', f"{enemy['id']} 施放熔火箭 → {target['id']}。")
-                    amount, detail = dice.roll(state, enemy['dice'])
-                    self._save_damage(state, target, amount, enemy['damage_type'], spell['save'], spell['dc'], '熔火箭', detail)
+                    self._enemy_spell(state, enemy, target, targets)
                 else:
-                    self._weapon_attack(state, enemy, target)
+                    for _ in range(enemy.get('attacks', 1)):
+                        if not self._alive(enemy) or not self._alive(target):
+                            break
+                        self._weapon_attack(state, enemy, target)
                 self._outcome(state)
         enemy["ended"] = True
 

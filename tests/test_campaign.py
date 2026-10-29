@@ -30,13 +30,13 @@ def victory():
 
 @pytest.mark.parametrize('party', [None, ['fighter','fighter','monk','monk'], ['wizard','cleric','wizard','cleric']])
 @pytest.mark.parametrize('route', ['road', 'ridge'])
-def test_seven_real_battles_to_boss(party, route):
+def test_fourteen_real_battles_to_boss(party, route):
     state, report = play(party, seed=42, route=route)
     assert report['completed'], report
-    assert [b['node'] for b in report['battles']] == ['outpost', route, 'gate', 'forge', 'crossfire', 'crucible', 'heart']
-    assert [b['levels'] for b in report['battles']] == [[2]*4, [4]*4, [6]*4, [8]*4, [8]*4, [8]*4, [8]*4]
+    assert [b['node'] for b in report['battles']] == ['outpost', route, 'cistern', 'foundry', 'gate', 'switchyard' if route=='road' else 'quarry', 'archive', 'forge', 'observatory', 'bastion', 'crossfire', 'sanctum', 'crucible', 'heart']
+    assert [b['levels'] for b in report['battles']] == [[n]*4 for n in [2,2,3,3,4,4,5,5,6,6,7,8,8,8]]
     assert all(b['outcome'] == 'victory' for b in report['battles'])
-    assert len(state['campaign']['cleared']) == 7
+    assert len(state['campaign']['cleared']) == 14
     assert any(e['kind'] == 'campaign_complete' for e in state['event_log'])
 
 
@@ -152,7 +152,7 @@ def test_campaign_menu_new_run_cancel_shop_and_travel(tmp_path):
         client.handle('14'); client.handle('c')
         assert client.view['campaign']['node'] == 'ridge'
         assert client.view['phase'] == 'combat'
-        assert any('北侧山脊' in line for line in output)
+        assert any('断壁山脊' in line for line in output)
     finally:
         store.close()
 
@@ -182,14 +182,14 @@ def test_campaign_real_terminal_start_resume_and_isolated_playground(tmp_path):
                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     first = subprocess.run([sys.executable, '-m', 'client', '--campaign', '--seed', '42', *common], **kwargs)
     assert first.returncode == 0, first.stderr
-    assert '第1/7站' in first.stdout and '裂隙远征' in first.stdout
+    assert '第1/14站' in first.stdout and '裂隙远征' in first.stdout
     assert '没有下一关' not in first.stdout
     resumed = subprocess.run([sys.executable, '-m', 'client', *common], **kwargs)
     assert resumed.returncode == 0, resumed.stderr
-    assert '第1/7站' in resumed.stdout
+    assert '第1/14站' in resumed.stdout
     isolated = subprocess.run([sys.executable, '-m', 'tools.dev_play', '--campaign'], **kwargs)
     assert isolated.returncode == 0, isolated.stderr
-    assert 'CmdRPG-M4-' in isolated.stdout and '第1/7站' in isolated.stdout
+    assert 'CmdRPG-M4-' in isolated.stdout and '第1/14站' in isolated.stdout
 
 
 
@@ -198,8 +198,8 @@ def test_campaign_save_version_is_distinct_from_m3_and_rejects_wrong_versions():
     engine = Engine()
     ordinary = engine.new_run(seed=42)
     campaign = engine.new_run(seed=42, campaign=True)
-    assert ordinary['content_version'] == '0.6.0-m6'
-    assert campaign['content_version'] == '0.6.0-campaign'
+    assert ordinary['content_version'] == '0.7.0-expansion'
+    assert campaign['content_version'] == '0.7.0-campaign'
     for field, value in [('version', 99), ('content_version', '0.3.0-m3')]:
         invalid = deepcopy(campaign)
         if field == 'version': invalid['campaign']['version'] = value

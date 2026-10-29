@@ -1,6 +1,7 @@
 """Versioned expeditions using the same combat and atomic command pipeline."""
 
 from copy import deepcopy
+from functools import lru_cache
 import json
 from pathlib import Path
 
@@ -9,12 +10,29 @@ from .growth import snapshot, recalculate
 
 
 COMMANDS = {"travel", "camp", "buy"}
-CONTENT_VERSION = '0.6.0-campaign'
+CONTENT_VERSION = '0.7.0-campaign'
 
 
 def load_campaign(path=None):
     source = Path(path) if path else Path(__file__).resolve().parents[1] / 'content/campaign.json'
-    data = _duplicate_checked(json.loads(source.read_text('utf-8'), object_pairs_hook=_JSONObjectPairs,
+    document = source.read_text('utf-8')
+    if path is not None:
+        return _decode_campaign(document)
+    # Database reopen and map transitions create fresh engines. Reuse only the
+    # validated document, while returning an independent mutable copy each time.
+    # Full source texts are cache keys: edits do not depend on timestamp accuracy.
+    content_dir = source.parent
+    return deepcopy(_cached_campaign(document, (content_dir/'pack.json').read_text('utf-8'),
+                                     (content_dir/'growth.json').read_text('utf-8')))
+
+
+@lru_cache(maxsize=2)
+def _cached_campaign(document, base_document, growth_document):
+    return _decode_campaign(document)
+
+
+def _decode_campaign(document):
+    data = _duplicate_checked(json.loads(document, object_pairs_hook=_JSONObjectPairs,
                                          parse_constant=_invalid_constant))
     if data.get('version') != 1 or not data.get('name') or data.get('start') not in data.get('nodes', {}):
         raise ValueError('campaign: invalid version or entry')
@@ -24,9 +42,10 @@ def load_campaign(path=None):
     if not data.get('shop') or any(k not in items or type(v) is not int or v <= 0 for k, v in data['shop'].items()):
         raise ValueError('campaign: invalid shop')
     data.setdefault('shop_unlocks', {key: 1 for key in data['shop']})
-    if not isinstance(data['shop_unlocks'], dict) or set(data['shop_unlocks']) != set(data['shop']) or any(type(v) is not int or not 1 <= v <= 7 for v in data['shop_unlocks'].values()):
+    if not isinstance(data['shop_unlocks'], dict) or set(data['shop_unlocks']) != set(data['shop']) or any(type(v) is not int or not 1 <= v <= 14 for v in data['shop_unlocks'].values()):
         raise ValueError('campaign: invalid shop unlocks')
-    _validate_nodes(data['nodes'], data['start'], base, items, DATA, 7)
+    _validate_nodes(data['nodes'], data['start'], base, items, DATA, 14)
+    _validate_nodes(data.get('previous_nodes', {}), data['start'], base, items, DATA, 7)
     _validate_nodes(data.get('legacy_nodes', {}), data['start'], base, items, DATA, 5)
     return data
 
@@ -41,7 +60,7 @@ def _validate_nodes(nodes, start, base, items, growth, total):
             raise ValueError('campaign: invalid reward/name')
         if type(node.get('reward_level')) is not int or not 1 <= node['reward_level'] <= 8:
             raise ValueError('campaign: invalid reward level')
-        if 'equipment_reward' in node and (not isinstance(node['equipment_reward'], dict) or set(node['equipment_reward']) != set(growth['classes']) or
+        if 'equipment_reward' in node and (not isinstance(node['equipment_reward'], dict) or not node['equipment_reward'] or not set(node['equipment_reward']).issubset(growth['classes']) or
                 any(not isinstance(v, str) or v not in items or items[v]['kind'] == 'potion' for v in node['equipment_reward'].values())):
             raise ValueError('campaign: invalid equipment reward')
         if not isinstance(node.get('next'), list) or len(set(node['next'])) != len(node['next']):
@@ -53,6 +72,16 @@ def _validate_nodes(nodes, start, base, items, growth, total):
         pack = deepcopy(base)
         pack.update(map=deepcopy(node['map']), encounter=deepcopy(node['encounter']), enemies=deepcopy(node['prototypes']))
         _validate(pack)  # Includes safe paths, geometry, unique spawns and enemy mechanics.
+        # Reaching an enemy's occupied tile is insufficient: a melee party needs
+        # a safe, visible attack position without walking through that enemy.
+        from . import spatial
+        board = node['map']
+        for enemy in node['encounter']['enemies']:
+            occupied = set(board.get('hazards', {})) | {enemy['position']}
+            reachable = spatial.paths(board, node['encounter']['party_spawns'][0], occupied)
+            if not any(spatial.reach_distance(board, cell, enemy['position']) <= 1.5
+                       and spatial.line_of_sight(board, cell, enemy['position']) for cell in reachable):
+                raise ValueError(f"campaign: {key}/{enemy['id']} has no safe melee approach")
     if nodes[start]['stage'] != 1:
         raise ValueError('campaign: entry must be level one')
     reached, pending = set(), [start]
@@ -69,12 +98,16 @@ class CampaignMixin:
     def _campaign_nodes(self, state=None):
         if state is not None and state.get('campaign', {}).get('edition', 1) == 1:
             return self.campaign_content['legacy_nodes']
+        if state is not None and state.get('campaign', {}).get('edition') == 2:
+            return self.campaign_content['previous_nodes']
         return self.campaign_content['nodes']
 
     def _shop_stock(self, state):
         stage = self._campaign_nodes(state)[state['campaign']['node']]['stage']
-        return {k: v for k, v in self.campaign_content['shop'].items()
-                if self.campaign_content['shop_unlocks'][k] <= stage}
+        unlocks = self.campaign_content['shop_unlocks']
+        if state['campaign'].get('edition', 1) < 3:
+            unlocks = {k: (3 if v == 5 else v) for k,v in unlocks.items()}
+        return {k: v for k, v in self.campaign_content['shop'].items() if unlocks[k] <= stage}
 
     def _campaign_pack(self, node, state=None):
         pack = load_content()
@@ -85,7 +118,7 @@ class CampaignMixin:
     def _new_campaign(self, name, templates, seed):
         from .engine import Engine
         start = self.campaign_content['start']
-        progress = dict(version=1, edition=2, node=start, cleared=[], camped=[], gold=40, unlocked_level=1, completed=False)
+        progress = dict(version=1, edition=3, node=start, cleared=[], camped=[], gold=40, unlocked_level=1, completed=False)
         return Engine(self._campaign_pack(start)).new_run(name, templates, seed, _carry={'campaign': progress})
 
     def _campaign_view(self, state):

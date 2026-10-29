@@ -139,7 +139,14 @@ def actor_line(actor, detailed=False):
         if actor.get('resistances'):
             result += '\n  抗性：' + '、'.join({'fire':'火焰'}.get(k,k) for k in actor['resistances'])
         if actor.get('spell'):
-            result += '\n  法术：熔火箭，射程%s米，%s豁免DC%s，成功伤害减半。' % (actor['range'], actor['spell']['save'], actor['spell']['dc'])
+            result += '\n  法术：%s，射程%s米，%s豁免DC%s，成功伤害减半。' % (actor['spell'].get('name','熔火箭'), actor['range'], actor['spell']['save'], actor['spell']['dc'])
+            if actor['spell'].get('radius'):
+                result += ' 范围%s米，敌友均受影响。' % actor['spell']['radius']
+        if detailed and actor.get('attacks'):
+            result += '\n  每动作攻击%s次。' % actor['attacks']
+        if detailed and actor.get('support'):
+            support=actor['support']
+            result += '\n  战地修复：%s，范围%s米，剩余%s次；消耗动作。' % (support['dice'],support['range'],support['uses'])
         if actor.get('save_proficiencies'):
             result += '\n  豁免熟练：' + '、'.join(actor['save_proficiencies'])
         if actor.get("stats"):
@@ -164,6 +171,10 @@ def render_growth(actor):
     lines.append('职业资源：'+render_cost(actor.get('resources',{})))
     passives = {'evasion':'闪避：敏捷半伤豁免成功免伤，失败减半（失能时无效）',
                 'blessed_healer':'受祝福的医者：法术治疗其他队友时，自身恢复2+环级（每次施法一次）',
+                'sneak_attack':'偷袭：自己回合每次命中至多触发一次；需要灵巧/远程武器，优势或清醒队友贴住目标且无净劣势。伤害随等级提高；不用于借机攻击',
+                'fast_hands':'快手：每回合两个附赠动作，可用于灵巧动作和药水；不增加普通动作',
+                'agonizing_blast':'痛苦魔爆：魔能爆每束命中伤害加魅力修正',
+                'dark_blessing':'邪魔祝福：亲自击败敌人获得等级+魅力修正临时生命；同类取高、不叠加',
                 'divine_strike':'神圣打击：自己回合首次武器命中追加1d8光耀，暴击翻倍骰数；不用于借机攻击'}
     lines.extend('被动：' + passives[key] for key in actor.get('passives', []) if key in passives)
     names={x['id']:x['name'] for x in actor.get('abilities',[])}
@@ -183,6 +194,10 @@ def _combat_lines(actor):
         combat['ac'], combat['attack_bonus'], combat['attacks_per_action'], combat['attacks_remaining']),
         '移动：剩余%s米 / 速度%s米' % (_number(actor.get('budgets', {}).get('movement', 0)), _number(combat['speed'])),
         '熟练：' + '、'.join(names.get(k,k) for k in trained) + '；盾牌熟练：' + ('有' if 'shield' in trained else '无')]
+    if actor.get('template') == 'rogue':
+        lines.append('偷袭：%sd6 · 本回合%s；附赠动作剩余%s；武器射程%s米' % ((actor['level']+1)//2, '已使用' if actor.get('sneak_used') else '可用（条件见目标预览）', actor['budgets']['bonus'], combat.get('weapon_range', 1.5)))
+    if actor.get('template') == 'warlock':
+        lines.append('契约法术位：短休/营地恢复全部；魔能爆%s束，痛苦魔爆每束%+d伤害' % (2 if actor['level']>=5 else 1, (actor['stats']['cha']-10)//2 if actor['level']>=2 else 0))
     if actor.get('template') == 'monk':
         lines.append('徒手命中 %+d（不含武器专属加值）；气点 %s/%s' % (
             combat['unarmed_attack_bonus'], actor.get('resources', {}).get('ki', 0), actor.get('max_resources', {}).get('ki', 0)))
@@ -377,6 +392,8 @@ def render_preview(number, preview, revision, view=None):
             result = "  %s：生命 %s → %s（恢复 %s）" % (
                 identity.strip(), effect.get("hp_before", "?"),
                 effect.get("hp_after", "?"), effect.get("healing", 0))
+            if effect.get("slots_restore"):
+                result += "；恢复契约法术位：" + render_cost({"slot_"+k:v for k,v in effect["slots_restore"].items()})
             if effect.get("resources_restore"):
                 result += "；恢复资源：" + render_cost(effect["resources_restore"])
             lines.append(result)
@@ -400,7 +417,7 @@ def render_preview(number, preview, revision, view=None):
     if comparison:
         lines.append('装备对比（穿戴后；命中率需在战斗中选择具体目标预览）：')
         labels = {'damage_dice':'武器伤害骰', 'damage_bonus':'武器伤害加值', 'attack_bonus':'武器命中加值',
-                  'ac':'AC', 'speed':'移动米', 'spell_attack':'法术攻击', 'spell_dc':'法术DC',
+                  'ac':'AC', 'weapon_range':'武器射程米', 'speed':'移动米', 'spell_attack':'法术攻击', 'spell_dc':'法术DC',
                   'healing_bonus':'装备法术治疗加值', 'save_bonus':'装备属性豁免加值', 'weapon_proficient':'武器熟练', 'two_handed':'双手占位',
                   'martial_arts':'无甲武艺', 'casting_allowed':'允许施法', 'attack_disadvantage':'护甲不熟练攻击劣势', 'resources':'职业资源上限'}
         changes = []
@@ -425,7 +442,7 @@ def render_preview(number, preview, revision, view=None):
         if "failure_probability" in save:
             lines.append("%s 豁免失败概率：%.1f%%（DC %s）" % (
                 _actor_name(view, save.get("target")), 100 * save["failure_probability"], save.get("dc", "?")))
-            if save.get('resistant'): lines.append('  目标火焰抗性：豁免结算后的伤害再减半。')
+            if save.get('resistant'): lines.append('  目标对此伤害有抗性：豁免结算后的伤害再减半。')
     warnings = preview.get("warnings", [])
     if warnings:
         lines.extend("危险/提示：%s" % _named_text(warning, view) for warning in warnings)

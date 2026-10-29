@@ -20,7 +20,7 @@ from .menu import TerminalMenu
 
 HELP = """中文游玩：选角色编号 → 选行动/技能编号 → 选目标编号或目的地 → 自动预览 → c 确认。
 0 返回并取消当前预览；q 退出。数字只选择当前列表条目；多目标可输入 1,2,3。
-当前可玩内容：独立前哨战，或七站远征战役；四职业从1级成长至8级，含路线分支与两阶段最终Boss。
+当前可玩内容：独立前哨战，或十四站远征战役；六职业可选，四人从1级成长至8级，含路线分支与两阶段最终Boss。
 首页9或战后12新开战役，保留旧周目。战役胜利后13/14选择路线，15营地休整，16商店。
 地图上下均有坐标；map 展开地形与地标，party 查资源，技能与规则菜单查完整说明。
 7–10 成长/装备/准备法术；独立开发局11号沿用当前组合重新演练。
@@ -386,7 +386,7 @@ def install_completion(client):
 
 
 def argument_parser():
-    parser = argparse.ArgumentParser(description="四人小队文字战术游戏：独立演练与七站战役")
+    parser = argparse.ArgumentParser(description="四人小队文字战术游戏：独立演练与十四站战役")
     selection = parser.add_mutually_exclusive_group()
     selection.add_argument("--setup", action="store_true", help="交互选择队伍名与四个职业")
     selection.add_argument("--new", action="store_true", help="开始新周目")
@@ -395,7 +395,7 @@ def argument_parser():
     parser.add_argument("--name", default="远征队", help="新队伍名称")
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric", help="恰好四个职业，允许重复")
     parser.add_argument("--seed", type=int, help="新周目随机种子")
-    parser.add_argument("--campaign", action="store_true", help="新开七站远征战役（保留旧周目）")
+    parser.add_argument("--campaign", action="store_true", help="新开十四站远征战役（保留旧周目）")
     parser.add_argument("--ui", choices=("auto", "cards", "plain"), default="auto",
                         help="固定区域决策卡或兼容文字入口；auto 在支持的交互终端启用卡片")
     parser.add_argument("--db", help="本地 SQLite 路径（默认 CMDRPG_DB 或 data/game.sqlite3）")
@@ -417,8 +417,8 @@ def main(argv=None, *, input_reader=input, output=print):
     if args.setup or args.campaign:
         args.new = True
     templates = [name.strip() for name in args.classes.split(",")]
-    if args.new and (len(templates) != 4 or any(name not in ("fighter", "monk", "wizard", "cleric") for name in templates)):
-        parser.error("--classes 须含四个 fighter/monk/wizard/cleric 职业，允许重复。")
+    if args.new and (len(templates) != 4 or any(name not in ("fighter", "monk", "wizard", "cleric", "rogue", "warlock") for name in templates)):
+        parser.error("--classes 须含四个 fighter/monk/wizard/cleric/rogue/warlock 职业，允许重复。")
     config_path = Path(args.config)
     journal_path = config_path.with_name(config_path.stem + ".pending.json")
     transport = None
@@ -477,13 +477,13 @@ def main(argv=None, *, input_reader=input, output=print):
         else:
             if args.setup:
                 args.name = input_reader("队伍名称（留空为远征队） > ").strip() or "远征队"
-                choices = {"1":"fighter", "2":"monk", "3":"wizard", "4":"cleric"}
-                output("1 战士（前哨长剑，防御18）  2 武僧（徒手，防御16）  3 法师（旅用匕首，防御12）  4 牧师（守营钉头锤，防御16）；每人有两瓶药水。")
+                choices = {"1":"fighter", "2":"monk", "3":"wizard", "4":"cleric", "5":"rogue", "6":"warlock"}
+                output("1 战士：近战攻守与动作如潮  2 武僧：机动、连击与震慑  3 法师：范围与高环法术  4 牧师：治疗与祝福  5 游荡者：短弓/灵巧武器偷袭、附赠机动  6 邪术师：魔能爆与短休契约法术位；每人有两瓶药水。")
                 templates = []
                 for index in range(4):
                     choice = input_reader("第 %s 名队员职业编号 > " % (index + 1)).strip()
                     if choice not in choices:
-                        raise ValueError("职业编号须为 1 至 4；尚未创建周目。")
+                        raise ValueError("职业编号须为 1 至 6；尚未创建周目。")
                     templates.append(choices[choice])
                 output("队伍：%s；职业：%s" % (args.name, ", ".join(templates)))
                 if input_reader("输入 c 确认建队，其他输入取消 > ").strip().lower() != "c":

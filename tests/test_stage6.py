@@ -200,7 +200,7 @@ def test_new_encounter_cli_uses_isolated_save_and_shows_live_panel(node):
 
 
 @pytest.mark.parametrize('route',['road','ridge'])
-def test_seven_station_campaign_with_all_four_purchased_items(route):
+def test_fourteen_station_campaign_with_all_four_purchased_items(route):
     engine=Engine(); state=engine.new_run(seed=7,campaign=True)
     battles=[]; purchases=[]
     for _ in range(1200):
@@ -219,9 +219,9 @@ def test_seven_station_campaign_with_all_four_purchased_items(route):
             purchases.append(item)
         state,_=engine.execute(state,dict(type='camp'))
         routes=engine.view(state)['campaign']['routes']
-        destination=route if len(routes)>1 else routes[0]['id']
+        destination=route if any(r['id']==route for r in routes) else routes[0]['id']
         state,_=engine.execute(state,dict(type='travel',destination=destination))
-    assert state['campaign']['completed'] and len(battles)==7
+    assert state['campaign']['completed'] and len(battles)==14
     assert len(purchases)==4 and state['actors']['P2']['max_resources']['ki']==11
     assert engine.view(state)['party'][3]['combat_stats']['speed']==15
 

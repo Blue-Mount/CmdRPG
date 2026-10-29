@@ -240,7 +240,7 @@ def test_staged_shop_purchase_preview_optional_camp_and_equipment_reward_idempot
     before=deepcopy(s); e._campaign_reward(s); assert s==before
     rewards = e.campaign_content['nodes']['gate']['equipment_reward']
     assert set(rewards.values()).isdisjoint(e.campaign_content['shop'])
-    assert len(set(rewards.values())) == 4
+    assert len(set(rewards.values())) == 6
     for actor in s['actors'].values():
         if actor['side'] == 'party':
             item = rewards[actor['template']]
@@ -274,7 +274,7 @@ def test_unique_rewards_equip_persist_and_carry_to_next_encounter(tmp_path):
         store.close()
         store = Repository(path)
         assert store.submit(rid, 'equip-%s' % index, index - 1, command) == receipt
-    receipt = store.submit(rid, 'travel', 4, dict(type='travel', destination='forge'))
+    receipt = store.submit(rid, 'travel', 4, dict(type='travel', destination='switchyard'))
     store.close()
     with Repository(path) as reopened:
         assert reopened.get_view(rid) == receipt['view']
@@ -292,7 +292,9 @@ def test_split_and_ground_chinese_menu_confirm_cancel_sqlite_reopen(tmp_path):
     output=[]; client=Client(LocalTransport(repository=store),output=output.append); client.create()
     client.handle('3')
     entry=next(a for a in client.view['party'][2]['menu_actions'] if a['command'].get('ability')=='magic_missile')
-    client.ui.select_action(entry); client.handle('1,1,2')
+    client.ui.select_action(entry)
+    if client.ui.stage == 'slots': client.handle('1')
+    client.handle('1,1,2')
     assert client.ui.stage=='confirm'
     assert client.preview_result['command']['targets']==['E1','E1','E2']
     client.handle('0'); assert client.view['party'][2]['slots']['1']==4

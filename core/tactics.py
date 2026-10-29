@@ -7,7 +7,7 @@ from .growth import mod, proficiency
 from .equipment import bonus
 
 
-TACTICAL = {"magic_missile", "scorching_ray", "fireball", "stunning_strike"}
+TACTICAL = {"magic_missile", "scorching_ray", "fireball", "shatter", "stunning_strike"}
 
 
 class TacticsMixin:
@@ -38,7 +38,7 @@ class TacticsMixin:
             self._casting_equipment(actor)
             if actor.get("growth_version") and ability_id not in actor.get("prepared", []):
                 raise GameError("not_prepared", "法术尚未准备。")
-            slot = command.get("slot", ability["level"])
+            slot = command.get("slot", self._default_slot(actor, ability["level"]))
             if type(slot) is not int or slot < ability["level"] or actor["slots"].get(str(slot), 0) < 1:
                 raise GameError("invalid_slot", "没有合法法术位。")
             normalized["slot"] = slot
@@ -51,9 +51,11 @@ class TacticsMixin:
 
         result = dict(command=normalized, revision=state["revision"], cost=cost,
                       targets=[], warnings=[], description=ability["name"] + "：" + ability["description"])
-        if ability_id == "fireball":
+        if ability['level']:
+            result['description'] += f" 本次{normalized['slot']}环：" + self._spell_scaling(actor, ability_id, normalized['slot'])
+        if ability_id in ("fireball", "shatter"):
             if "targets" in command or (("target" in command) == ("destination" in command)):
-                fail("火球请选择一个地面落点或一个可见敌人中心。")
+                fail("范围法术请选择一个地面落点或一个可见敌人中心。")
             if "target" in command:
                 target = self._target(state, command["target"], "enemy")
                 self._in_range(state, actor, target, ability["range"])
@@ -64,13 +66,13 @@ class TacticsMixin:
                     fail("落点须为地图内非墙格。")
                 if spatial.distance(state["map"], actor["position"], centre) > ability["range"] or not spatial.line_of_sight(state["map"], actor["position"], centre):
                     fail("落点超出射程或被遮挡。")
-            targets = [t for t in self._burst_targets(state, centre)
-                       if self._visible(state, t) and not self._sculpted(actor, t)]
+            targets = [t for t in self._burst_targets(state, centre, 3 if ability_id == "shatter" else 6)
+                       if self._visible(state, t) and not (ability_id == "fireball" and self._sculpted(actor, t))]
             dc = self._spell_dc(actor)
-            result.update(centre=centre, radius=6, damage_dice=f"{8 + normalized['slot'] - 3}d6", save_dc=dc,
+            result.update(centre=centre, radius=3 if ability_id == "shatter" else 6, damage_dice=f"{normalized['slot'] + 1}d8" if ability_id == "shatter" else f"{8 + normalized['slot'] - 3}d6", save_dc=dc,
                           targets=[t["id"] for t in targets],
-                          saves=[dict(target=t["id"], dc=dc, failure_probability=self._save_failure_probability(t, "dex", dc), resistant='fire' in t.get('resistances', [])) for t in targets])
-            result["warnings"].append("范围按三维距离结算；塑能保护友军，豁免成功减半，抗性另行生效。")
+                          saves=[dict(target=t["id"], dc=dc, failure_probability=self._save_failure_probability(t, "con" if ability_id == "shatter" else "dex", dc), resistant=("thunder" if ability_id == "shatter" else "fire") in t.get("resistances", [])) for t in targets])
+            result["warnings"].append("范围按三维距离结算；豁免成功减半，抗性另行生效。" + ("粉碎音波会伤及友军。" if ability_id == "shatter" else "塑能法师保护友军；其他职业火球会伤及友军。"))
             return result
 
         if "destination" in command or (("target" in command) == ("targets" in command)):
@@ -121,9 +123,9 @@ class TacticsMixin:
     def _spell_dc(self, actor):
         return 8 + proficiency(actor) + mod(actor["stats"][actor["spell_stat"]]) + bonus(actor, self.content["items"], "spell_dc")
 
-    def _burst_targets(self, state, centre):
-        return [t for t in state["actors"].values() if "dead" not in t["conditions"]
-                and spatial.distance(state["map"], centre, t["position"]) <= 6]
+    def _burst_targets(self, state, centre, radius=6):
+        return [t for t in sorted(state["actors"].values(), key=lambda a: a['id']) if "dead" not in t["conditions"]
+                and spatial.distance(state["map"], centre, t["position"]) <= radius]
 
     def _sculpted(self, actor, target):
         return actor["side"] == target["side"] and actor["template"] == "wizard" and actor["level"] >= 2
@@ -131,12 +133,12 @@ class TacticsMixin:
     def _tactical_cast(self, state, actor, command):
         ability_id = command["ability"]
         self._emit(state, "ability", f"{actor['id']} 使用 {self.content['abilities'][ability_id]['name']}。", slot=command.get("slot", 0))
-        if ability_id == "fireball":
+        if ability_id in ("fireball", "shatter"):
             centre = command.get("destination") or state["actors"][command["target"]]["position"]
-            amount, detail = dice.roll(state, f"{8 + command['slot'] - 3}d6")
-            for target in self._burst_targets(state, centre):
-                if not self._sculpted(actor, target):
-                    self._save_damage(state, target, amount, 'fire', 'dex', self._spell_dc(actor), '火球术', detail, source_actor=actor['id'])
+            amount, detail = dice.roll(state, f"{command['slot'] + 1}d8" if ability_id == "shatter" else f"{8 + command['slot'] - 3}d6")
+            for target in self._burst_targets(state, centre, 3 if ability_id == "shatter" else 6):
+                if not (ability_id == "fireball" and self._sculpted(actor, target)):
+                    self._save_damage(state, target, amount, 'thunder' if ability_id == 'shatter' else 'fire', 'con' if ability_id == 'shatter' else 'dex', self._spell_dc(actor), self.content['abilities'][ability_id]['name'], detail, source_actor=actor['id'])
             return
         count = 1 if ability_id == "stunning_strike" else command["slot"] + (2 if ability_id == "magic_missile" else 1)
         ids = command.get("targets", [command.get("target")] * count)

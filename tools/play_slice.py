@@ -93,7 +93,16 @@ def choose(engine, state, *, support=False):
     for enemy in enemies:
         if 'blight' in abilities and 'fire' in enemy.get('resistances', []):
             commands.append({'type':'cast','actor':aid,'ability':'blight','target':enemy['id']})
-        if 'fireball' in abilities: commands.append({'type':'cast','actor':aid,'ability':'fireball','target':enemy['id']})
+        if 'shatter' in abilities and actor['template'] == 'warlock':
+            for spell in ('shatter', 'fireball'):
+                if spell not in abilities: continue
+                probe = dict(type='cast',actor=aid,ability=spell,target=enemy['id'])
+                preview = legal(engine,state,probe)
+                if preview and len([t for t in preview['targets'] if t.startswith('E')]) >= 2 and not any(t.startswith('P') for t in preview['targets']):
+                    commands.append(preview['command'])
+        if 'eldritch_blast' in abilities:
+            commands.append({'type':'cast','actor':aid,'ability':'eldritch_blast','target':enemy['id']})
+        if 'fireball' in abilities and actor['template'] != 'warlock': commands.append({'type':'cast','actor':aid,'ability':'fireball','target':enemy['id']})
         if 'scorching_ray' in abilities: commands.append({'type':'cast','actor':aid,'ability':'scorching_ray','target':enemy['id']})
         if 'flurry' in abilities: commands.append({'type':'ability','actor':aid,'ability':'flurry','target':enemy['id']})
         if 'magic_missile' in abilities:
@@ -109,10 +118,13 @@ def choose(engine, state, *, support=False):
         if legal(engine, state, command):
             return ('command', command)
     if actor['budgets']['action'] > 0 or actor.get('combat_stats', {}).get('attacks_remaining', 0) > 0:
-        attack_range = 18 if {'fire_bolt','sacred_flame'} & abilities.keys() else 1.5
+        attack_range = max(actor.get('combat_stats', {}).get('weapon_range', 1.5), 18 if {'fire_bolt','sacred_flame','eldritch_blast'} & abilities.keys() else 1.5)
         command = move_for_attack(engine, state, view, actor, enemies, attack_range)
         if command:
             return ('command', command)
+        if 'cunning_dash' in abilities and actor['budgets']['movement'] < actor['speed']:
+            dash = dict(type='ability',actor=aid,ability='cunning_dash')
+            if legal(engine,state,dash): return ('command',dash)
         # A blocked corridor can be cleared by the front party member first.
     return ('command', {'type':'end','actor':aid})
 

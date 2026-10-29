@@ -230,7 +230,14 @@ def _validate(pack):
 
     for ident, enemy in pack["enemies"].items():
         loc = f"enemies.{ident}"
-        _object(enemy, loc, {"name", "hp", "ac", "stats", "speed", "range", "dice", "damage_type", "role"}, {"attack_stat", "save_proficiencies", "resistances", "spell", "boss"})
+        _object(enemy, loc, {"name", "hp", "ac", "stats", "speed", "range", "dice", "damage_type", "role"}, {"attack_stat", "save_proficiencies", "resistances", "spell", "boss", "attacks", "support"})
+        if 'attacks' in enemy:
+            _number(enemy['attacks'], loc + '.attacks', 1, 2, integer=True)
+        if 'support' in enemy:
+            cfg = _object(enemy['support'], loc + '.support', {'dice', 'uses', 'range'})
+            _dice(cfg['dice'], loc + '.support.dice')
+            _number(cfg['uses'], loc + '.support.uses', 1, 3, integer=True)
+            _number(cfg['range'], loc + '.support.range', 1.5, 18)
         if 'boss' in enemy:
             config = _object(enemy['boss'], loc + '.boss', {'threshold', 'radius', 'dice', 'dc'})
             _number(config['threshold'], loc + '.boss.threshold', 0.1, 0.9)
@@ -240,7 +247,11 @@ def _validate(pack):
         if "resistances" in enemy and (not isinstance(enemy['resistances'], list) or any(not isinstance(x, str) or x not in DAMAGE_TYPES for x in enemy['resistances']) or len(set(enemy['resistances'])) != len(enemy['resistances'])):
             _fail(loc, "invalid resistance types")
         if "spell" in enemy:
-            _object(enemy['spell'], loc + '.spell', {'save', 'dc'})
+            _object(enemy['spell'], loc + '.spell', {'save', 'dc'}, {'radius', 'name'})
+            if 'radius' in enemy['spell']:
+                _number(enemy['spell']['radius'], loc + '.spell.radius', 1.5, 6)
+            if 'name' in enemy['spell']:
+                _text(enemy['spell']['name'], loc + '.spell.name')
             _enum(enemy['spell']['save'], loc + '.spell.save', STATS)
             _number(enemy['spell']['dc'], loc + '.spell.dc', 8, 20, integer=True)
             if enemy['role'] != 'ranged':

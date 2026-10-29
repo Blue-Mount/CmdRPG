@@ -237,7 +237,7 @@ def test_campaign_cross_level_gains_are_emitted_per_level_and_not_duplicated():
     for actor in state['actors'].values():
         if actor['side']=='enemy': actor.update(hp=0,conditions=['dead'])
     engine._outcome(state)
-    state['campaign']['node']='road'; previous=state['event_seq']
+    state['campaign']['node']='gate'; previous=state['event_seq']
     engine._campaign_reward(state)
     events=[e for e in state['event_log'] if e['seq']>previous and e['kind']=='levelup']
     assert len(events)==8
@@ -275,7 +275,7 @@ def test_old_equipment_view_and_preview_do_not_mutate_save_and_explicit_equip_ad
     engine.preview(state,command); assert state==before
     after,_=engine.execute(state,command)
     assert after['actors']['P3']['equipment']['ring']=='protection_ring'
-    assert after['content_version']=='0.6.0-m6'
+    assert after['content_version']=='0.7.0-expansion'
 
 
 @pytest.mark.parametrize('seed',[1,7,42])

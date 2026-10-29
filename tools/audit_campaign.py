@@ -13,8 +13,31 @@ PARTIES = {
     'balanced': ['fighter', 'monk', 'wizard', 'cleric'],
     'physical': ['fighter', 'fighter', 'monk', 'monk'],
     'casters': ['wizard', 'wizard', 'cleric', 'cleric'],
+    'expanded': ['fighter', 'rogue', 'warlock', 'cleric'],
+    'new_classes': ['rogue', 'rogue', 'warlock', 'warlock'],
+    'warlocks': ['warlock'] * 4,
+    'rogues': ['rogue'] * 4,
 }
-POLICIES = {'offense': choose, 'support': choose_support}
+POLICIES = {'offense': choose, 'support': choose_support, 'equipped': choose_support}
+
+
+def diagnostics(runs):
+    """Flag smoke-player stalls without mistaking win rate for enjoyment."""
+    from statistics import median
+    battles = [b for row in runs for b in row.get('battles', [])]
+    suspects = [dict(party=row['party'], route=row['route'], seed=row['seed'], node=b['node'],
+                     rounds=b['rounds'], unused_action_ends=b.get('activity', {}).get('unused_action_ends', 0))
+                for row in runs for b in row.get('battles', [])
+                if b['rounds'] >= 20 or (b['rounds'] >= 10 and b.get('activity', {}).get('unused_action_ends', 0) > 15)]
+    by_node = {}
+    for battle in battles:
+        by_node.setdefault(battle['node'], []).append(battle['rounds'])
+    return dict(battles=len(battles), max_rounds=max((b['rounds'] for b in battles), default=0),
+                suspect_stalls=suspects,
+                downed=sum((b.get('report') or {}).get('downed', 0) for b in battles),
+                deaths=sum((b.get('report') or {}).get('deaths', 0) for b in battles),
+                nodes={node:dict(samples=len(rounds),minimum=min(rounds),median=median(rounds),maximum=max(rounds))
+                       for node,rounds in sorted(by_node.items())})
 
 
 def audit(seeds=(7, 42), routes=('road', 'ridge'), parties=('balanced', 'physical', 'casters'),
@@ -25,7 +48,7 @@ def audit(seeds=(7, 42), routes=('road', 'ridge'), parties=('balanced', 'physica
             for seed in seeds:
                 for policy in policies:
                     try:
-                        _, result = play(PARTIES[party], seed=seed, route=route, chooser=POLICIES[policy])
+                        _, result = play(PARTIES[party], seed=seed, route=route, chooser=POLICIES[policy], shopping=policy=='equipped')
                     except (GameError, RuntimeError) as exc:
                         result = dict(seed=seed, route=route, completed=False, error=str(exc))
                     row = dict(party=party, policy=policy, **result)
@@ -34,9 +57,10 @@ def audit(seeds=(7, 42), routes=('road', 'ridge'), parties=('balanced', 'physica
                         on_run(row)
     return dict(
         schema_version=2,
-        policy='offense: direct attacks; support: round-one bless and stun un-stunned targets with HP >= 20; camp after every victory; no shopping or equipment changes',
+        policy='offense: direct attacks; support: round-one bless/stun; equipped: support plus legal weapon purchases/rewards, first rogue uses rapier; all camp after victories; offense/support do not shop',
         scope='Legal-command smoke runs; observed events only; not human balance or enjoyment validation',
         total=len(runs), completed=sum(r['completed'] for r in runs), runs=runs,
+        diagnostics=diagnostics(runs),
     )
 
 
@@ -51,7 +75,7 @@ def main():
     def progress(row):
         import sys
         print('%s / %s / seed%s / %s: %s' % (row['party'], row['route'], row['seed'], row['policy'],
-              'completed' if row['completed'] else 'FAILED'), file=sys.stderr, flush=True)
+              'completed' if row['completed'] else 'FAILED: ' + row.get('error', 'defeated at ' + str((row.get('battles') or [{}])[-1].get('node')))), file=sys.stderr, flush=True)
 
     result = audit(args.seeds, args.routes, args.parties, args.policies, on_run=progress)
     text = json.dumps(result, ensure_ascii=False, indent=2) + '\n'

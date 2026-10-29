@@ -24,6 +24,7 @@ class PlaygroundEngine(Engine):
             self.content['rules_version'] = RULES_VERSION
             self.content['abilities'].update(DATA['abilities'])
             self.content['items'].update(DATA['items'])
+            self._install_classes()
         self.levels, self.loadouts = levels, loadouts
 
     def new_run(self, name="M3开发试玩", templates=None, seed=None, *, campaign=False):
@@ -52,10 +53,10 @@ def main(argv=None):
     parser.add_argument("--levels", help="四人独立等级，例如 2,3,4,5")
     parser.add_argument("--classes", default="fighter,monk,wizard,cleric")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument('--campaign', action='store_true', help='七站完整战役雏形，从1级开始')
+    parser.add_argument('--campaign', action='store_true', help='十四站完整战役雏形，从1级开始')
     parser.add_argument('--battle-slice', action='store_true', help='在熔炉地图反复体验四职业爆发、控制与装备；默认5级')
     parser.add_argument('--boss-slice', action='store_true', help='独立两阶段Boss试玩，默认8级；战后11号可重新演练')
-    parser.add_argument('--encounter', choices=('crossfire', 'crucible'), help='独立八级断桥/大厅试玩，战后11号可重新演练')
+    parser.add_argument('--encounter', choices=tuple(Engine().campaign_content['nodes']), help='独立遭遇试玩，默认8级，战后11号可重新演练')
     parser.add_argument('--ui', choices=('auto', 'cards', 'plain'), default='auto', help='终端界面模式')
     parser.add_argument(
         "--equip",

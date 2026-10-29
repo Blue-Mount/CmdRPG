@@ -186,7 +186,7 @@ def test_new_encounter_resets_report_and_settlement_menu_exposes_it(tmp_path):
             checked.append(state['campaign']['node'])
 
     state, report = play(seed=42, on_step=checkpoint)
-    assert len(checked) == 6 and report['completed']
+    assert len(checked) == 13 and report['completed']
     assert all(b['report']['enemy_hp_lost'] > 0 for b in report['battles'])
 
     class Won(Engine):

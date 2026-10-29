@@ -54,6 +54,8 @@ def select(client, command):
                   and entry["command"]["type"] == command["type"]
                   and entry["command"].get("ability") == command.get("ability"))
     client.handle(number)
+    if client.ui.stage == 'slots':
+        client.handle(str(command.get('slot', client.ui.action['command']['slot'])))
     if "destination" in command:
         client.handle(command["destination"])
     elif "target" in command or "targets" in command:
@@ -92,9 +94,9 @@ def test_settlement_choices_follow_numeric_order_in_decision_panel(tmp_path, nod
                                    if ' | ' in line))
             screen.navigate('n')
         right = '\n'.join(pages)
-        assert right.index('1 全队短休') < right.index('12 新开七站远征战役')
+        assert right.index('1 全队短休') < right.index('12 新开十四站远征战役')
         if node:
-            assert right.index('12 新开七站远征战役') < right.index('16 营地商店')
+            assert right.index('12 新开十四站远征战役') < right.index('16 营地商店')
     finally:
         transport.close()
 
@@ -131,6 +133,7 @@ def test_selected_effect_rules_preview_cancel_and_stale_confirmation(tmp_path):
         number = next(n for n, (kind, entry) in client.menu.items()
                       if kind == "action" and entry["command"].get("ability") == "scorching_ray")
         client.handle(number)
+        if client.ui.stage == 'slots': client.handle('2')
         decision = client.ui.render()
         assert "效果：" in decision and "成本：" in decision and "法术位" in decision
         client.handle("rules")

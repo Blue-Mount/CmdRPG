@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 LEVEL_CAP = 8
-CONTENT_VERSION = '0.6.0-m6'
-RULES_VERSION = '0.6.0-provisional'
+CONTENT_VERSION = '0.7.0-expansion'
+RULES_VERSION = '0.7.0-provisional'
 EQUIPMENT_SLOTS = ("main_hand", "off_hand", "armor", "ring", "feet")
 
 def load_growth(path=None):
@@ -42,10 +42,11 @@ def validate_growth(data):
         "stunning_strike",
         "blight",
         "death_ward",
+        "eldritch_blast", "false_life", "shatter", "cunning_dash", "cunning_disengage",
     }
     if (
         data.get("version") != 1
-        or set(data.get("classes", {})) != {"fighter", "monk", "wizard", "cleric"}
+        or set(data.get("classes", {})) != {"fighter", "monk", "wizard", "cleric", "rogue", "warlock"}
         or set(data.get("abilities", {})) != effects
     ):
         raise ValueError("growth: version/classes/effect registry mismatch")
@@ -81,6 +82,11 @@ def validate_growth(data):
             "stunning_strike": ("action", 0, 1.5, "ki"),
             "blight": ("action", 4, 9, None),
             "death_ward": ("action", 4, 1.5, None),
+            "eldritch_blast": ("action", 0, 18, None),
+            "false_life": ("action", 1, 0, None),
+            "shatter": ("action", 2, 18, None),
+            "cunning_dash": ("bonus", 0, 0, None),
+            "cunning_disengage": ("bonus", 0, 0, None),
         }
         if (b["cost"], b["level"], b["range"], b.get("resource")) != specs[key]:
             raise ValueError("growth: effect metadata mismatch")
@@ -122,6 +128,7 @@ def validate_growth(data):
                 "evasion",
                 "blessed_healer",
                 "divine_strike",
+                "sneak_attack", "fast_hands", "dark_blessing", "agonizing_blast",
             }:
                 raise ValueError("growth: unknown passive")
             items = base["items"] | data["items"]
@@ -148,6 +155,10 @@ def validate_growth(data):
                 if slot not in ("1", "2", "3", "4") or int(slot) > (int(level) + 1) // 2:
                     raise ValueError("growth: illegal slot")
                 _number(count, "growth slot", 1, 4, integer=True)
+            if cid == 'warlock' and (b['slots'] != {str((int(level)+1)//2): 1 if int(level)==1 else 2} or b['spell_stat'] != 'cha'):
+                raise ValueError('growth: invalid pact magic snapshot')
+            if cid == 'rogue' and (b['slots'] or b['spell_stat'] is not None):
+                raise ValueError('growth: thief template does not cast spells')
             for resource, count in b["resources"].items():
                 if resource not in (
                     "second_wind",
@@ -164,13 +175,13 @@ def validate_growth(data):
             ):
                 raise ValueError("growth: invalid extra attack")
             if any(
-                abilities[a]["level"] and str(abilities[a]["level"]) not in b["slots"]
+                abilities[a]["level"] and not any(int(slot) >= abilities[a]["level"] for slot in b["slots"])
                 for a in b["abilities"]
             ):
                 raise ValueError("growth: ability unlocked without slot")
     for key, b in data["items"].items():
         BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus", "ki_bonus"}
-        if set(b) - {"name", "slot", "kind", "dice", "damage_type", "category", "ac", "two_handed", "base_weapon", "description"} - BONUSES:
+        if set(b) - {"name", "slot", "kind", "dice", "damage_type", "category", "ac", "two_handed", "base_weapon", "description", "range", "finesse"} - BONUSES:
             raise ValueError("growth: unknown equipment effect")
         for field in BONUSES & b.keys():
             _number(b[field], "equipment bonus", 0, 6 if field == "speed_bonus" else 3, integer=True)
@@ -184,6 +195,11 @@ def validate_growth(data):
             ]
         ):
             raise ValueError("growth: invalid equipment slot")
+        if "range" in b:
+            _number(b["range"], "weapon range", 1.5, 18)
+            if b["kind"] != "weapon": raise ValueError("growth: range requires weapon")
+        if "finesse" in b and (type(b["finesse"]) is not bool or b["kind"] != "weapon"):
+            raise ValueError("growth: invalid finesse")
         if b["kind"] == "weapon":
             _dice(b.get("dice"), "growth weapon")
         elif b["kind"] != "accessory":
@@ -201,11 +217,13 @@ def validate_growth(data):
 
 
 DATA = load_growth()
-SELF = {"action_surge", "patient_defence", "mass_healing_word", "preserve_life", "aid"}
+SELF = {"action_surge", "patient_defence", "mass_healing_word", "preserve_life", "aid", "false_life", "cunning_dash", "cunning_disengage"}
 FRIENDLY = {"rally", "death_ward"}
 PROF = {
     "fighter": {"simple", "martial", "light", "medium", "heavy", "shield"},
     "monk": {"simple"},
+    "rogue": {"simple", "rapier", "light"},
+    "warlock": {"simple", "light"},
     "wizard": {"dagger", "staff"},
     "cleric": {"simple", "light", "medium", "heavy", "shield"},
 }
@@ -225,7 +243,7 @@ def level_changes(template, level):
     labels = {'str':'力量', 'dex':'敏捷', 'con':'体质', 'int':'智力', 'wis':'感知', 'cha':'魅力',
               'second_wind':'回气', 'action_surge':'动作如潮', 'superiority':'优越骰', 'ki':'气',
               'channel':'引导神力', 'arcane_recovery':'奥术回想点数',
-              'evasion':'闪避', 'blessed_healer':'受祝福的医者', 'divine_strike':'神圣打击'}
+              'evasion':'闪避', 'fast_hands':'快手：每回合两个附赠动作', 'agonizing_blast':'痛苦魔爆：每束加魅力伤害', 'dark_blessing':'邪魔祝福', 'sneak_attack':'偷袭', 'blessed_healer':'受祝福的医者', 'divine_strike':'神圣打击'}
     changes = [f"基础生命上限 {before['hp']} → {after['hp']}"]
     for key in ('proficiency', 'extra_attack', 'speed'):
         if before[key] != after[key]:
@@ -240,6 +258,10 @@ def level_changes(template, level):
         if ability not in before['abilities']:
             changes.append('新能力：' + DATA['abilities'].get(ability, {}).get('name', ability))
     changes.extend('新被动：' + labels.get(key, key) for key in after['passives'] if key not in before['passives'])
+    if template == 'rogue' and level % 2:
+        changes.append(f"偷袭伤害 {(level-1)//2}d6 → {(level+1)//2}d6")
+    if template == 'warlock' and level == 5:
+        changes.append('魔能爆 1束 → 2束；可逐束分配目标')
     return changes
 
 
@@ -269,6 +291,8 @@ def snapshot(actor, level, items):
         if current == 'resources' and actor['template'] == 'monk' and 'ki' in incoming:
             incoming['ki'] += sum(items.get(item, {}).get('ki_bonus', 0) for item in actor.get('equipment', {}).values())
         used = {k: v - actor[current].get(k, 0) for k, v in actor[maximum].items()}
+        if current == "slots" and actor["template"] == "warlock":
+            used = {k: sum(used.values()) for k in incoming}
         actor[maximum] = deepcopy(incoming)
         actor[current] = {
             k: max(0, v - used.get(k, 0)) for k, v in incoming.items()
@@ -330,13 +354,13 @@ def recalculate(a, items):
     item = items[a["weapon"]]
     monk_weapon = (
         item.get("category", "martial" if a["weapon"] == "longsword" else "simple")
-        == "simple"
+        == "simple" and item.get('range', 1.5) <= 1.5
     )
-    finesse = a["weapon"] == "dagger" or (
+    finesse = item.get("finesse") or item.get("range", 1.5) > 1.5 or a["weapon"] == "dagger" or (
         a["template"] == "monk" and monk_weapon and not armor and not eq.get("off_hand")
     )
     a["attack_stat"] = (
-        "dex" if finesse and a["stats"]["dex"] >= a["stats"]["str"] else "str"
+        "dex" if item.get("range", 1.5) > 1.5 or (finesse and a["stats"]["dex"] >= a["stats"]["str"]) else "str"
     )
     if a["template"] == "monk":
         a["speed"] = (
@@ -635,6 +659,9 @@ class GrowthMixin:
             description=b["name"] + "：" + b["description"],
             warnings=[],
         )
+        if b['level']:
+            result['command']['slot'] = slot
+            result['description'] += f" 本次{slot}环：" + self._spell_scaling(a, aid, slot)
         if aid == "flurry":
             from . import dice
             adv, dis, height = self._attack_context(state, a, targets[0])
