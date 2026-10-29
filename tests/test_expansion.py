@@ -96,19 +96,15 @@ def test_pact_upgrade_preserves_spent_slots_across_slot_rank_change():
     assert actor['slots']=={'3':0}
 
 
-def test_short_rest_restores_pact_slots_only_and_preview_is_exact(arena):
+def test_automatic_recovery_restores_pact_and_normal_slots(arena):
     engine,state=arena
     state.update(phase='victory',outcome='victory',active_group=[])
     state['actors']['P2']['slots']={'4':0}
     state['actors']['P4']['slots']={k:0 for k in state['actors']['P4']['slots']}
-    before=deepcopy(state)
-    preview=engine.preview(state,dict(type='rest',kind='short'))
-    assert state==before
-    assert next(a for a in preview['rest_effects'] if a['actor']=='P2')['slots_restore']=={'4':2}
-    after,_=engine.execute(state,dict(type='rest',kind='short'))
-    assert after['actors']['P2']['slots']=={'4':2}
-    assert not any(after['actors']['P4']['slots'].values())
-    assert after['short_rests']==state['short_rests']-1
+    engine._automatic_recovery(state)
+    assert state['actors']['P2']['slots']=={'4':2}
+    assert state['actors']['P4']['slots']==state['actors']['P4']['max_slots']
+    assert state['short_rests']==0
 
 
 def test_fiend_temp_hp_is_attributed_nonstacking_and_not_repeated(arena):
@@ -325,7 +321,6 @@ def test_old_campaigns_can_complete_original_routes_through_legal_commands(editi
         assert state['phase']=='victory'
         completed.append(state['campaign']['node'])
         if state['campaign']['completed']: break
-        state,_=engine.execute(state,dict(type='camp'))
         state,_=engine.execute(state,dict(type='travel',destination=engine.view(state)['campaign']['routes'][0]['id']))
     assert state['campaign']['completed'] and len(completed)==total
     assert state['campaign']['edition']==edition

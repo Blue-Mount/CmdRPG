@@ -33,21 +33,21 @@ def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
         before = deepcopy(state)
         settle(engine, state)
         level = [2,2,3,3,4,4,5,5,6,6,7,8,8,8][stage - 1]
-        assert state['campaign']['gold'] == before['campaign']['gold'] + [80,100,100,110,120,130,140,140,160,170,160,190,180,160][stage - 1]
+        assert state['campaign']['gold'] == before['campaign']['gold'] + [80,100,100,110,120,130,140,140,160,170,160,190,180,160][stage - 1] - 20
         assert engine.view(state)['settlement']['loot_available'] is False
         for aid in ['P1', 'P2', 'P3', 'P4']:
             actor, old = state['actors'][aid], before['actors'][aid]
             assert actor['level'] == level
-            assert actor['max_hp'] - actor['hp'] == 3
+            assert actor['max_hp'] == actor['hp']
             reward = engine.campaign_content['nodes'][node].get('equipment_reward', {}).get(actor['template'])
             expected_inventory = old['inventory'] + ([reward] if reward and reward not in old['inventory'] else [])
             assert actor['inventory'] == expected_inventory
             assert actor['equipment'] == old['equipment']
-            assert actor['resources']['potions'] == 1
+            assert actor['resources']['potions'] == 2
             for current, maximum in [('slots', 'max_slots'), ('resources', 'max_resources')]:
                 for key, capacity in actor[maximum].items():
                     spent = old[maximum].get(key, 0) - old[current].get(key, 0)
-                    assert actor[current][key] == capacity - spent
+                    assert actor[current][key] == capacity
             with pytest.raises(GameError):
                 engine.execute(state, {'type': 'levelup', 'actor': aid})
         fighter, wizard = state['actors']['P1'], state['actors']['P3']
@@ -70,7 +70,6 @@ def test_each_settlement_preserves_build_choices_and_spent_capacity(route):
         engine._campaign_reward(state)
         assert state == settled
         if stage < 14:
-            state, _ = engine.execute(state, {'type': 'camp'})
             destination = route if stage == 1 else engine.view(state)['campaign']['routes'][0]['id']
             state, _ = engine.execute(state, {'type': 'travel', 'destination': destination})
     assert state['campaign']['completed']

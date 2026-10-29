@@ -22,6 +22,7 @@ class TerminalMenu:
         self.return_stage = "actions"
         self.revision = client.view.get("revision")
         self.compact = True
+        self.shop_type = None
 
     def sync(self):
         client = self.client
@@ -34,7 +35,7 @@ class TerminalMenu:
         elif self.stage in ("reaction", "recovery"):
             self.stage = "actions" if self.selected else "home"
         if (not client.pending and not client.view.get("pending")
-                and client.view.get("phase") != "combat" and self.stage not in ("confirm", "growth", "shop_party", "shop")):
+                and client.view.get("phase") != "combat" and self.stage not in ("confirm", "growth", "shop_party", "shop", "shop_types")):
             self.stage = "settlement" if client.view.get("phase") == "victory" else "home"
             self.selected = None
 
@@ -52,7 +53,7 @@ class TerminalMenu:
         action = self.action.get("name", "") if self.action else ""
         stages = {"home": "选择角色", "actions": "选择行动或技能", "slots": "选择法术位环级", "target": "选择目标",
                   "move": "选择目的地", "confirm": "确认执行", "reaction": "选择反应", "recovery": "恢复回执",
-                  "settlement": "战后结算", "growth":"成长与装备", "shop_party": "选择购买队员", "shop": "营地商店"}
+                  "settlement": "战后结算", "growth":"成长与装备", "shop_party": "选择购买队员", "shop": "商店", "shop_types": "选择分店"}
         return "【%s%s · %s】" % (who, " · " + action if action else "", stages[self.stage])
 
     def build(self):
@@ -68,7 +69,7 @@ class TerminalMenu:
             elif not client.view.get('campaign'):
                 menu['9'] = ('campaign_new', None)
         elif self.stage == "settlement":
-            menu = {"1": ("rest", None), "2": ("read", "party"),
+            menu = {"1": ("read", "recovery"), "2": ("read", "party"),
                     "3": ("new_run", None), "4": ("read", "map"),
                     "5": ("read", "log"), "6": ("read", "loot")}
             menu.update({str(n):("growth",a["id"]) for n,a in enumerate(client.view.get("party",[]),7)})
@@ -80,14 +81,15 @@ class TerminalMenu:
             if campaign:
                 menu.update({str(n): ('campaign_command', ({'type': 'travel', 'destination': route['id']}, route['name']))
                              for n, route in enumerate(campaign['routes'], 13)})
-                if not campaign['completed'] and campaign['node'] not in campaign['camped']:
-                    menu['15'] = ('campaign_command', ({'type': 'camp'}, '营地休整'))
                 menu['16'] = ('shop_party', None)
         elif self.stage == 'shop_party':
             menu = {str(n): ('shop_actor', a['id']) for n, a in enumerate(client.view['party'], 1)}
         elif self.stage == 'shop':
             menu = {str(n): ('campaign_command', ({'type': 'buy', 'actor': self.selected, 'item': item['id']}, '购买' + item['name']))
-                    for n, item in enumerate(client.view['campaign']['shop'], 1)}
+                    for n, item in enumerate(self.shop_items(), 1)}
+        elif self.stage == 'shop_types':
+            menu = {str(n): ('shop_filter', store['id']) for n,store in enumerate(client.view['campaign'].get('shop_types',[]),1)}
+            menu[str(len(menu)+1)] = ('shop_filter', None)
         elif self.stage == "growth":
             actor=self.actor()
             entries=[]
@@ -98,8 +100,6 @@ class TerminalMenu:
             for item in actor.get('inventory_items',[]):
                 if actor.get('equipment',{}).get(item['slot'])!=item['id']:
                     entries.append(('穿戴 '+item['name'],{'type':'equip','actor':self.selected,'slot':item['slot'],'item':item['id']}))
-            for slot in actor.get('max_slots',{}):
-                if actor['resources'].get('arcane_recovery',0)>=int(slot) and actor['slots'].get(slot,0)<actor['max_slots'][slot]: entries.append(('奥术回想：恢复'+slot+'环法术位',{'type':'recover','actor':self.selected,'slot':int(slot)}))
             names={x['id']:x['name'] for x in actor.get('abilities',[])}
             for spell in actor.get('known_spells',[]):
                 if spell in actor.get('always_prepared',[]): continue
@@ -124,6 +124,9 @@ class TerminalMenu:
             menu = {"9": ("resend", None)}
         client.menu = menu
         return menu
+
+    def shop_items(self):
+        return [item for item in self.client.view['campaign']['shop'] if self.shop_type is None or item.get('shop_type')==self.shop_type]
 
     def render(self):
         lines = []
@@ -151,9 +154,7 @@ class TerminalMenu:
                 lines.append(render_battle_report(client.view, detailed=False))
             elif summary:
                 lines.append("本场摘要：%s 回合；倒地 %s 次，死亡 %s；消耗法术位 %s、药水 %s；双方累计伤害 %s、治疗 %s。" % (client.view.get("round", "?"), summary.get("downed", 0), summary.get("deaths", 0), summary.get("slots", 0), summary.get("potions", 0), summary.get("damage", 0), summary.get("healing", 0)))
-            remaining = client.view.get("short_rests", 0)
-            lines.append("1 全队短休（剩余 %s 次%s）" % (
-                remaining, "，已用完" if remaining <= 0 else "；恢复契约位，不恢复普通法术位" if campaign else "；仅用于演示，无后续战斗"))
+            lines.append('1 查看自动恢复（全队已恢复）' if client.view.get('automatic_recovery') else '1 查看恢复说明（旧结算出发前免费恢复）')
             lines.append("2 查看全队资源  3 新开一场战斗（同阵容、新周目）")
             lines.append("4 查看地图  5 详细日志  6 战利品说明")
             lines.append("  ".join(n+" "+v+" 成长与装备" for n,(k,v) in menu.items() if k=="growth"))
@@ -163,7 +164,7 @@ class TerminalMenu:
                 if kind == 'campaign_command':
                     lines.append(n + ' ' + entry[1] + ('（20金币；全队复苏、生命/法术位/职业资源全恢复）' if entry[0]['type'] == 'camp' else ''))
                 elif kind == 'shop_party':
-                    lines.append(n + ' 营地商店（药水与装备）')
+                    lines.append(n + ' 商店（药水与装备）')
             lines.append('17 查看全队升级记录')
             lines.append('18 查看本场战报（队员输出、治疗、命中与资源消耗）')
             if not campaign:
@@ -173,11 +174,19 @@ class TerminalMenu:
             for n, (_, aid) in menu.items():
                 lines.append(n + ' ' + aid + ' ' + next(a['name'] for a in client.view['party'] if a['id'] == aid))
         elif self.stage == 'shop':
-            lines.append('金币 %s；装备购买后进入成长与装备穿戴。' % client.view['campaign']['gold'])
-            for n, item in enumerate(client.view['campaign']['shop'], 1):
+            campaign=client.view['campaign']
+            name=next((s['name'] for s in campaign.get('shop_types',[]) if s['id']==self.shop_type),'全部分店')
+            lines.append('%s · 金币 %s；t 切换分店；装备购买后手动比较、穿戴。' % (name,campaign['gold']))
+            if campaign.get('next_restock'): lines.append('下批新货：第%s站胜利后；已解锁商品持续供应。' % campaign['next_restock'])
+            if not self.shop_items(): lines.append('这家分店当前尚未开售商品；t 可查看其他分店。')
+            for n, item in enumerate(self.shop_items(), 1):
                 owned = item['id'] in self.actor().get('inventory', [])
-                lines.append('%s. %s · %s金币%s' % (n, item['name'], item['price'], '（已拥有）' if owned else ''))
+                lines.append('%s. %s · %s金币%s%s · %s' % (n, item['name'], item['price'], '（已拥有）' if owned else '', '【本场新货】' if item.get('new') else '',item.get('shop_name','商店')))
                 if item.get('description'): lines.append('   ' + item['description'])
+        elif self.stage == 'shop_types':
+            for n,store in enumerate(client.view['campaign'].get('shop_types',[]),1):
+                lines.append('%s. %s · 在售%s种 · 本场新货%s种' % (n,store['name'],store['count'],store['new_count']))
+            lines.append('%s. 全部分店' % len(menu))
         elif self.stage == "growth":
             lines.append(render_growth(self.actor()))
             for n,(_,entry) in menu.items(): lines.append(n+'. '+entry[0])
@@ -216,7 +225,7 @@ class TerminalMenu:
             lines.append("9 恢复未确认请求；已保存原请求编号，请先恢复回执。")
         elif self.stage == "confirm":
             lines.append("c 确认执行；数字不会执行行动。")
-        lines.append(("0 返回  " if self.stage in ("actions", "slots", "target", "move", "confirm", "growth", "shop_party", "shop") else "") + "q 退出（已执行动作自动保存）")
+        lines.append(("0 返回  " if self.stage in ("actions", "slots", "target", "move", "confirm", "growth", "shop_party", "shop", "shop_types") else "") + "q 退出（已执行动作自动保存）")
         self.revision = client.view.get("revision") if self.stage not in ("confirm", "target", "move") else self.revision
 
         return "\n".join(lines)
@@ -341,7 +350,10 @@ class TerminalMenu:
         elif self.stage == "growth":
             self.stage = "settlement"
         elif self.stage == 'shop':
+            self.stage = 'shop_types' if self.shop_type else 'shop_party'
+        elif self.stage == 'shop_types':
             self.stage = 'shop_party'
+            self.shop_type = None
         elif self.stage == 'shop_party':
             self.stage = 'settlement'
             self.selected = None
@@ -375,6 +387,9 @@ class TerminalMenu:
     def handle(self, line):
         """Return None for a legacy command, or a bool for handled input."""
         line = line.strip().lower()
+        if line == 't' and self.stage in ('shop','shop_types'):
+            self.check_revision(); self.stage='shop_types'; self.show()
+            return True
         if line == "rules":
             self.client.refresh(display=False)
             if self.action and self.action.get("command"):
@@ -429,7 +444,9 @@ class TerminalMenu:
         elif kind == 'shop_party':
             self.check_revision(); self.selected = None; self.stage = 'shop_party'; self.show()
         elif kind == 'shop_actor':
-            self.check_revision(); self.selected = value; self.stage = 'shop'; self.show()
+            self.check_revision(); self.selected = value; self.shop_type=None; self.stage = 'shop'; self.show()
+        elif kind == 'shop_filter':
+            self.check_revision(); self.shop_type=value; self.stage='shop'; self.show()
         elif kind == 'campaign_command':
             self.check_revision(); self.action = {'name': value[1]}; self.preview(value[0], self.stage)
         elif kind == "manage":
@@ -450,6 +467,8 @@ class TerminalMenu:
                 self.client.output(render_growth_history(self.client.view))
             elif value == 'report':
                 self.client.output(render_battle_report(self.client.view))
+            elif value == 'recovery':
+                self.client.output('胜利后全队自动恢复生命、法术位、职业资源并复苏；药水补到至少2瓶。战役每场金币已少20，不再手动扣费。' if self.client.view.get('automatic_recovery') else '这是更新前的旧结算：原金币和装备不改写，进入下一场前免费恢复全队，不重复扣费。')
             elif value == "log":
                 self.client._log(10)
             elif value == "rules":

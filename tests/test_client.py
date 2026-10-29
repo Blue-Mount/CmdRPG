@@ -317,7 +317,7 @@ class LocalIntegrationTests(unittest.TestCase):
                 self.assertEqual(client.view["phase"], "victory", "\n".join(output[-4:]))
                 self.assertGreater(client.view["revision"], 5)
                 client.handle("rest short")
-                self.assertEqual(client.view["short_rests"], 1)
+                self.assertEqual(client.view["short_rests"], 0)
             finally:
                 transport.close()
 

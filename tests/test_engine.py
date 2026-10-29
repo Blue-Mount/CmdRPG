@@ -220,54 +220,26 @@ def test_retry_restores_rng_and_resources(engine):
     assert changed['revision'] == state['revision'] + 1
 
 
-def test_short_rest_is_limited_and_does_not_restore_spell_slots(engine, state):
-    state['phase'] = 'victory'
-    state['actors']['P1']['hp'] = 1
-    state['actors']['P1']['resources']['second_wind'] = 0
-    state['actors']['P3']['slots']['1'] = 0
-    changed, _ = engine.execute(state, {'type':'rest','kind':'short'})
-    assert changed['actors']['P1']['hp'] == 7
-    assert changed['actors']['P1']['resources']['second_wind'] == 1
-    assert changed['actors']['P3']['slots']['1'] == 0
-    changed, _ = engine.execute(changed, {'type':'rest','kind':'short'})
-    with pytest.raises(GameError):
-        engine.execute(changed, {'type':'rest','kind':'short'})
+def test_short_rest_is_retired_and_cannot_change_resources(engine,state):
+    state['phase']='victory'; state['actors']['P3']['slots']['1']=0
+    before=deepcopy(state)
+    with pytest.raises(GameError,match='自动'):
+        engine.execute(state,dict(type='rest',kind='short'))
+    assert state==before
 
 
-def test_full_party_short_rest_preview_matches_one_execution_and_stays_pure(engine, state):
-    state.update(phase='victory', outcome='victory')
-    state['actors']['P1']['hp'] = 1
-    state['actors']['P1']['resources'].update(second_wind=0, potions=0)
-    state['actors']['P2'].update(hp=0, conditions=['downed'])
-    state['actors']['P3']['hp'] = state['actors']['P3']['max_hp'] - 1
-    state['actors']['P3']['slots']['1'] = 0
-    state['actors']['P4'].update(hp=0, conditions=['dead'])
-    before = deepcopy(state)
-    command = {'type':'rest','kind':'short'}
-    preview = engine.preview(state, command)
-    assert preview == engine.preview(state, command)
-    assert preview['cost'] == {'short_rests': 1}
-    assert preview['targets'] == ['P1', 'P2', 'P3']
-    assert '全队短休' in preview['description'] and '向上取整' in preview['description']
-    assert '不会复活' in preview['description'] and '法术位' in preview['description']
-    assert next(effect for effect in preview['rest_effects'] if effect['actor'] == 'P1')['resources_restore'] == {'second_wind': 1}
-    changed, events = engine.execute(state, command)
-    assert changed['short_rests'] == state['short_rests'] - 1
-    assert changed['revision'] == state['revision'] + 1
-    assert changed['rng_state'] == state['rng_state']
-    for effect in preview['rest_effects']:
-        member = changed['actors'][effect['actor']]
-        assert member['hp'] == effect['hp_after']
-        assert effect['healing'] == member['hp'] - state['actors'][effect['actor']]['hp']
-        for resource, amount in effect['resources_restore'].items():
-            assert member['resources'][resource] == state['actors'][effect['actor']]['resources'][resource] + amount
-    assert changed['actors']['P1']['resources']['potions'] == 0
-    assert changed['actors']['P3']['slots']['1'] == 0
-    assert changed['actors']['P4'] == state['actors']['P4']
-    assert 'downed' not in changed['actors']['P2']['conditions']
-    assert len([event for event in events if event['kind'] == 'rest']) == 1
-    assert len([event for event in events if event['kind'] == 'heal']) == 3
-    assert state == before
+def test_automatic_full_recovery_is_rng_free_and_revives_everyone(engine,state):
+    state.update(phase='victory',outcome='victory')
+    for a in state['actors'].values():
+        if a['side']=='party':
+            a.update(hp=0,conditions=['dead']); a['slots']={k:0 for k in a['slots']}; a['resources']['potions']=0
+    rng=state['rng_state']; revision=state['revision']
+    engine._automatic_recovery(state)
+    assert state['rng_state']==rng and state['revision']==revision
+    for a in state['actors'].values():
+        if a['side']=='party':
+            assert a['hp']==a['max_hp'] and not a['conditions']
+            assert a['slots']==a['max_slots'] and a['resources']['potions']==2
 
 
 def test_victory_view_reports_current_slice_settlement_without_rewards(engine, state):

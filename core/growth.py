@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 LEVEL_CAP = 8
-CONTENT_VERSION = '0.7.0-expansion'
-RULES_VERSION = '0.7.0-provisional'
+CONTENT_VERSION = '0.8.0-auto-rest'
+RULES_VERSION = '0.8.0-provisional'
 EQUIPMENT_SLOTS = ("main_hand", "off_hand", "armor", "ring", "feet")
 
 def load_growth(path=None):
@@ -449,6 +449,8 @@ class GrowthMixin:
 
     def _management_preview(self, state, c):
         kind = c["type"]
+        if kind=='recover':
+            self._growth_error('automatic_recovery','法术位在胜利后自动恢复，已移除奥术回想。')
         actor_id = c.get("actor")
         a = state["actors"].get(actor_id) if isinstance(actor_id, str) else None
         fields = {

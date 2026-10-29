@@ -40,7 +40,7 @@ def stats(actor, items):
                 spell_dc=8 + proficiency(actor) + spell_mod + bonus(actor, items, "spell_dc") if actor.get("spell_stat") else None,
                 healing_bonus=bonus(actor, items, "healing_bonus"),
                 save_bonus=bonus(actor, items, "save_bonus"),
-                resources=deepcopy(actor.get("max_resources", {})))
+                resources={k:v for k,v in actor.get('max_resources',{}).items() if k!='arcane_recovery'})
 
 
 def compare(actor, item_id, slot, items):
@@ -61,7 +61,7 @@ def compare(actor, item_id, slot, items):
     if not after["casting_allowed"]:
         warnings.append("护甲或盾牌未熟练：攻击劣势且禁止施法。")
     if items.get(item_id, {}).get('ki_bonus'):
-        warnings.append('仅武僧的气点上限提高；穿戴不补气，短休或营地恢复后可用。')
+        warnings.append('仅武僧的气点上限提高；穿戴不补气，胜利后或出发前自动补满。')
     if before["martial_arts"] and not after["martial_arts"]:
         warnings.append("武器或护甲配置使武艺不可用；穿甲或持盾还会失去无甲防御与无甲移动收益。")
     return dict(before=before, after=after, warnings=warnings,

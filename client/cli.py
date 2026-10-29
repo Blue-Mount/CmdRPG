@@ -21,7 +21,7 @@ from .menu import TerminalMenu
 HELP = """中文游玩：选角色编号 → 选行动/技能编号 → 选目标编号或目的地 → 自动预览 → c 确认。
 0 返回并取消当前预览；q 退出。数字只选择当前列表条目；多目标可输入 1,2,3。
 当前可玩内容：独立前哨战，或十四站远征战役；六职业可选，四人从1级成长至8级，含路线分支与两阶段最终Boss。
-首页9或战后12新开战役，保留旧周目。战役胜利后13/14选择路线，15营地休整，16商店。
+首页9或战后12新开战役，保留旧周目。战役胜利后13/14选择路线，16商店；胜利自动全恢复。
 地图上下均有坐标；map 展开地形与地标，party 查资源，技能与规则菜单查完整说明。
 7–10 成长/装备/准备法术；独立开发局11号沿用当前组合重新演练。
 以下命令保留为快捷入口：
@@ -41,15 +41,14 @@ preview ability P2 unarmed_strike E1
 preview cast P3 mage_armor P3 slot=1
 preview levelup P1 / preview equip P1 off_hand none
 preview equip P1 main_hand greatsword
-preview prepare P3 magic_missile,fireball / preview recover P3 2
+preview prepare P3 magic_missile,fireball
 preview cast P4 aid slot=3
 preview dash P2 / preview disengage P2 / preview dodge P2
 preview help P1 P2 / preview potion P1
 do 1                     执行指定预览；局势变更后必须重新预览
 end P1                   结束该队员操作
 react accept / react decline  接受或拒绝待选反应
-rest short               战斗结束后短休
-preview camp             营地休整（20金币，每站一次，全队复苏与资源恢复）
+胜利后自动全恢复         战役每场奖励已少20金币，无需短休、营地或奥术回想
 preview travel road      前往当前可选路线；不可跳关
 preview buy P1 greatsword 购买药水/装备到指定队员背包
 retry                    战败后回到战前状态
@@ -478,7 +477,7 @@ def main(argv=None, *, input_reader=input, output=print):
             if args.setup:
                 args.name = input_reader("队伍名称（留空为远征队） > ").strip() or "远征队"
                 choices = {"1":"fighter", "2":"monk", "3":"wizard", "4":"cleric", "5":"rogue", "6":"warlock"}
-                output("1 战士：近战攻守与动作如潮  2 武僧：机动、连击与震慑  3 法师：范围与高环法术  4 牧师：治疗与祝福  5 游荡者：短弓/灵巧武器偷袭、附赠机动  6 邪术师：魔能爆与短休契约法术位；每人有两瓶药水。")
+                output("1 战士：近战攻守与动作如潮  2 武僧：机动、连击与震慑  3 法师：范围与高环法术  4 牧师：治疗与祝福  5 游荡者：短弓/灵巧武器偷袭、附赠机动  6 邪术师：魔能爆与高环契约法术位；每人有两瓶药水。")
                 templates = []
                 for index in range(4):
                     choice = input_reader("第 %s 名队员职业编号 > " % (index + 1)).strip()

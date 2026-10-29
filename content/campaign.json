@@ -263,7 +263,15 @@
           }
         ]
       },
-      "reward_level": 2
+      "reward_level": 2,
+      "equipment_reward": {
+        "fighter": "wayfarer_boots",
+        "monk": "wayfarer_boots",
+        "wizard": "wayfarer_boots",
+        "cleric": "wayfarer_boots",
+        "rogue": "wayfarer_boots",
+        "warlock": "wayfarer_boots"
+      }
     },
     "ridge": {
       "name": "第二站 · 断壁山脊",
@@ -391,7 +399,15 @@
           }
         ]
       },
-      "reward_level": 2
+      "reward_level": 2,
+      "equipment_reward": {
+        "fighter": "wayfarer_boots",
+        "monk": "wayfarer_boots",
+        "wizard": "wayfarer_boots",
+        "cleric": "wayfarer_boots",
+        "rogue": "wayfarer_boots",
+        "warlock": "wayfarer_boots"
+      }
     },
     "gate": {
       "name": "第五站 · 要塞双门",
@@ -575,7 +591,7 @@
           {
             "position": "M6",
             "name": "核心大门",
-            "description": "下一站是最终Boss；建议升至5级并营地休整。"
+            "description": "下一站是最终Boss；胜利已自动恢复，可检查配装后出发。"
           }
         ]
       },
@@ -704,7 +720,15 @@
           }
         ]
       },
-      "reward_level": 5
+      "reward_level": 5,
+      "equipment_reward": {
+        "fighter": "oathsteel",
+        "monk": "steadfast_boots",
+        "rogue": "shadow_leather",
+        "wizard": "seal_ring",
+        "warlock": "seal_ring",
+        "cleric": "dawn_scale"
+      }
     },
     "heart": {
       "name": "终站 · 裂隙之心",
@@ -1147,6 +1171,14 @@
             "position": "M6"
           }
         ]
+      },
+      "equipment_reward": {
+        "fighter": "last_stand_ring",
+        "monk": "stillness_master_ring",
+        "wizard": "final_spell_ring",
+        "cleric": "final_dawn_ring",
+        "rogue": "last_stand_ring",
+        "warlock": "final_spell_ring"
       }
     },
     "cistern": {
@@ -1458,6 +1490,14 @@
             "name": "铸音冲击"
           }
         }
+      },
+      "equipment_reward": {
+        "fighter": "vow_ring",
+        "monk": "vow_ring",
+        "wizard": "resonance_ring",
+        "cleric": "benevolence_ring",
+        "rogue": "vow_ring",
+        "warlock": "resonance_ring"
       }
     },
     "switchyard": {
@@ -1622,6 +1662,14 @@
           "role": "ranged",
           "attack_stat": "dex"
         }
+      },
+      "equipment_reward": {
+        "fighter": "railbreaker",
+        "monk": "stillmind_ring",
+        "rogue": "swift_rapier",
+        "wizard": "chime_staff",
+        "warlock": "chime_staff",
+        "cleric": "dawn_oath_mace"
       }
     },
     "quarry": {
@@ -1788,6 +1836,14 @@
           "role": "melee",
           "attack_stat": "str"
         }
+      },
+      "equipment_reward": {
+        "fighter": "railbreaker",
+        "monk": "stillmind_ring",
+        "rogue": "swift_rapier",
+        "wizard": "chime_staff",
+        "warlock": "chime_staff",
+        "cleric": "dawn_oath_mace"
       }
     },
     "archive": {
@@ -2322,12 +2378,12 @@
         }
       },
       "equipment_reward": {
-        "fighter": "protection_ring",
-        "monk": "protection_ring",
-        "wizard": "focus_ring",
-        "cleric": "healer_ring",
-        "rogue": "protection_ring",
-        "warlock": "focus_ring"
+        "fighter": "vanguard_oath_boots",
+        "monk": "flow_boots",
+        "wizard": "channel_boots",
+        "cleric": "healer_oath_boots",
+        "rogue": "vanguard_oath_boots",
+        "warlock": "channel_boots"
       }
     },
     "sanctum": {
@@ -2564,36 +2620,78 @@
     "shortbow": 25,
     "scout_bow": 55,
     "duelist_rapier": 65,
-    "fiend_staff": 65
+    "fiend_staff": 65,
+    "longsword_plus2": 135,
+    "greatsword_plus2": 165,
+    "scout_bow_plus2": 140,
+    "rapier_plus2": 135,
+    "studded_leather": 45,
+    "full_plate": 190,
+    "aegis_shield": 110,
+    "tower_shield": 145,
+    "assault_staff": 75,
+    "judgement_staff": 120,
+    "restoration_mace": 90,
+    "arcane_guard_staff": 145,
+    "marksman_ring": 60,
+    "war_caster_ring": 95,
+    "resilient_ring": 85,
+    "mending_ring": 75,
+    "duelist_boots": 60,
+    "mage_boots": 90,
+    "vanguard_boots": 125,
+    "warding_boots": 115,
+    "afterglow_ring": 130
   },
   "shop_unlocks": {
+    "healing_potion": 1,
+    "greatsword": 1,
+    "rapier": 1,
+    "shortbow": 1,
     "reinforced_scale": 1,
-    "warding_shield": 2,
+    "swift_boots": 1,
     "protection_ring": 1,
     "focus_ring": 1,
     "healer_ring": 1,
-    "swift_boots": 1,
-    "resolve_boots": 2,
-    "healing_potion": 1,
-    "greatsword": 1,
-    "longsword_plus1": 1,
-    "wind_staff": 1,
-    "striking_staff": 1,
-    "focus_staff": 1,
-    "warding_staff": 1,
-    "mercy_mace": 1,
-    "bastion_shield": 2,
-    "greatsword_plus1": 5,
-    "plate": 5,
-    "precision_ring": 5,
-    "weave_ring": 5,
-    "ki_ring": 5,
-    "strider_boots": 5,
-    "rapier": 1,
-    "shortbow": 1,
+    "longsword_plus1": 2,
+    "wind_staff": 2,
+    "striking_staff": 2,
+    "focus_staff": 2,
+    "warding_staff": 2,
+    "mercy_mace": 2,
     "scout_bow": 2,
     "duelist_rapier": 2,
-    "fiend_staff": 2
+    "warding_shield": 2,
+    "resolve_boots": 2,
+    "fiend_staff": 2,
+    "duelist_boots": 2,
+    "bastion_shield": 4,
+    "greatsword_plus1": 4,
+    "plate": 4,
+    "marksman_ring": 4,
+    "assault_staff": 4,
+    "studded_leather": 4,
+    "precision_ring": 6,
+    "ki_ring": 6,
+    "mage_boots": 6,
+    "war_caster_ring": 6,
+    "restoration_mace": 6,
+    "weave_ring": 8,
+    "strider_boots": 8,
+    "rapier_plus2": 8,
+    "longsword_plus2": 8,
+    "judgement_staff": 8,
+    "resilient_ring": 8,
+    "aegis_shield": 8,
+    "greatsword_plus2": 10,
+    "scout_bow_plus2": 10,
+    "arcane_guard_staff": 10,
+    "mending_ring": 10,
+    "tower_shield": 10,
+    "full_plate": 12,
+    "vanguard_boots": 12,
+    "warding_boots": 13,
+    "afterglow_ring": 13
   },
   "legacy_nodes": {
     "outpost": {
@@ -3165,7 +3263,7 @@
           {
             "position": "M6",
             "name": "核心大门",
-            "description": "下一站是最终Boss；建议升至5级并营地休整。"
+            "description": "下一站是最终Boss；胜利已自动恢复，可检查配装后出发。"
           }
         ]
       },
@@ -4001,7 +4099,7 @@
           {
             "position": "M6",
             "name": "核心大门",
-            "description": "下一站是最终Boss；建议升至5级并营地休整。"
+            "description": "下一站是最终Boss；胜利已自动恢复，可检查配装后出发。"
           }
         ]
       },
@@ -4575,5 +4673,121 @@
         ]
       }
     }
+  },
+  "legacy_shop": {
+    "reinforced_scale": 55,
+    "warding_shield": 60,
+    "protection_ring": 65,
+    "focus_ring": 55,
+    "healer_ring": 45,
+    "swift_boots": 50,
+    "resolve_boots": 50,
+    "healing_potion": 10,
+    "greatsword": 35,
+    "longsword_plus1": 55,
+    "wind_staff": 45,
+    "striking_staff": 55,
+    "focus_staff": 60,
+    "warding_staff": 45,
+    "mercy_mace": 50,
+    "bastion_shield": 70,
+    "greatsword_plus1": 90,
+    "plate": 100,
+    "precision_ring": 85,
+    "weave_ring": 90,
+    "ki_ring": 80,
+    "strider_boots": 95,
+    "rapier": 25,
+    "shortbow": 25,
+    "scout_bow": 55,
+    "duelist_rapier": 65,
+    "fiend_staff": 65
+  },
+  "legacy_shop_unlocks": {
+    "reinforced_scale": 1,
+    "warding_shield": 2,
+    "protection_ring": 1,
+    "focus_ring": 1,
+    "healer_ring": 1,
+    "swift_boots": 1,
+    "resolve_boots": 2,
+    "healing_potion": 1,
+    "greatsword": 1,
+    "longsword_plus1": 1,
+    "wind_staff": 1,
+    "striking_staff": 1,
+    "focus_staff": 1,
+    "warding_staff": 1,
+    "mercy_mace": 1,
+    "bastion_shield": 2,
+    "greatsword_plus1": 5,
+    "plate": 5,
+    "precision_ring": 5,
+    "weave_ring": 5,
+    "ki_ring": 5,
+    "strider_boots": 5,
+    "rapier": 1,
+    "shortbow": 1,
+    "scout_bow": 2,
+    "duelist_rapier": 2,
+    "fiend_staff": 2
+  },
+  "shop_types": {
+    "weapons": "武器铺",
+    "armor": "防具铺",
+    "arcane": "奥术器具店",
+    "rings": "戒指铺",
+    "boots": "鞋靴铺",
+    "supplies": "补给站"
+  },
+  "shop_categories": {
+    "reinforced_scale": "armor",
+    "warding_shield": "armor",
+    "protection_ring": "rings",
+    "focus_ring": "rings",
+    "healer_ring": "rings",
+    "swift_boots": "boots",
+    "resolve_boots": "boots",
+    "healing_potion": "supplies",
+    "greatsword": "weapons",
+    "longsword_plus1": "weapons",
+    "wind_staff": "weapons",
+    "striking_staff": "weapons",
+    "focus_staff": "arcane",
+    "warding_staff": "arcane",
+    "mercy_mace": "arcane",
+    "bastion_shield": "armor",
+    "greatsword_plus1": "weapons",
+    "plate": "armor",
+    "precision_ring": "rings",
+    "weave_ring": "rings",
+    "ki_ring": "rings",
+    "strider_boots": "boots",
+    "rapier": "weapons",
+    "shortbow": "weapons",
+    "scout_bow": "weapons",
+    "duelist_rapier": "weapons",
+    "fiend_staff": "arcane",
+    "longsword_plus2": "weapons",
+    "greatsword_plus2": "weapons",
+    "scout_bow_plus2": "weapons",
+    "rapier_plus2": "weapons",
+    "studded_leather": "armor",
+    "full_plate": "armor",
+    "aegis_shield": "armor",
+    "tower_shield": "armor",
+    "assault_staff": "arcane",
+    "judgement_staff": "arcane",
+    "restoration_mace": "arcane",
+    "arcane_guard_staff": "arcane",
+    "marksman_ring": "rings",
+    "war_caster_ring": "rings",
+    "resilient_ring": "rings",
+    "mending_ring": "rings",
+    "duelist_boots": "boots",
+    "mage_boots": "boots",
+    "vanguard_boots": "boots",
+    "warding_boots": "boots",
+    "afterglow_ring": "rings"
   }
 }

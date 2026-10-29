@@ -91,7 +91,8 @@ def test_dead_enemies_leave_targets_but_dead_party_remains_explained(engine, sta
     assert "E1" not in {target["id"] for target in attacks["entries"] + spells["entries"]}
     healing = engine.options(state, {"type": "cast", "actor": "P4", "ability": "healing_word"})
     dead = next(target for target in healing["entries"] if target["id"] == "P1")
-    assert not dead["available"] and "死亡" in dead["reason"] and "不会复活" in dead["reason"]
+    assert not dead["available"] and "死亡" in dead["reason"] and "战中无法" in dead["reason"]
+    assert "胜利后自动复苏" in dead["reason"]
     assert state == before
 
 

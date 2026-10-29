@@ -48,6 +48,12 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             raise GameError('version_mismatch', '战役路线版本不受支持。')
         if any(a.get("growth_version") not in (None,1) for a in state.get("actors",{}).values()):
             raise GameError("version_mismatch","成长存档版本不受支持，请使用对应版本服务。")
+        old_content = '0.7.0-campaign' if state.get('campaign') else '0.7.0-expansion'
+        if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == (old_content, '0.7.0-provisional', 1):
+            return
+        old_content = '0.7.1-campaign' if state.get('campaign') else '0.7.1-equipment'
+        if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == (old_content, '0.7.0-provisional', 1):
+            return
         if (state.get('content_version'),state.get('rules_version'),state.get('save_version'))==('0.1.0-slice','0.1.0-provisional',1):
             return  # Explicit legacy adapter: no mutation or implicit resource grants.
         previous = '0.4.0-m4' if state.get('campaign') else '0.3.0-m3'
@@ -85,7 +91,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             "rng_state": secrets.randbits(64) if seed is None else seed,
             "round": 1, "actors": {}, "map": deepcopy(self.content["map"]),
             "cursor": 0, "active_group": [], "pending": None,
-            "event_log": [], "event_seq": 0, "short_rests": 2,
+            "event_log": [], "event_seq": 0, "short_rests": 0,
             "encounter_name": self.content["encounter"]["name"],
         }
         for index, template in enumerate(templates):
@@ -210,6 +216,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             result = {key: deepcopy(actor[key]) for key in common}
             if actor["side"] == "party":
                 result.update({key: deepcopy(actor[key]) for key in ("resources", "slots", "concentration", "death_success", "death_failure", "temp_hp", "effects")})
+                result['resources'].pop('arcane_recovery',None)
                 conditions = actor["conditions"]
                 result["status"] = ("死亡" if "dead" in conditions else
                     "倒地·伤势稳定" if "stable" in conditions else
@@ -228,6 +235,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                 if 'equipment' in result:
                     result['equipment'] = dict.fromkeys(EQUIPMENT_SLOTS) | result['equipment']
                 result['passives'] = deepcopy(actor.get('passives', []))
+                if 'max_resources' in result: result['max_resources'].pop('arcane_recovery',None)
                 result['sneak_used'] = actor.get('sneak_used', False)
                 result['growth_history'] = deepcopy(actor.get('growth_history', []))
                 result['last_growth'] = deepcopy(actor.get('last_growth'))
@@ -279,7 +287,8 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             "battle_report": deepcopy(state.get('battle_report')),
             "campaign": self._campaign_view(state),
             "development": state.get("development",False), "outcome": state["outcome"], "content_version": state["content_version"], "rules_version": state["rules_version"],
-            "encounter_name": state["encounter_name"], "short_rests": state["short_rests"],
+            "encounter_name": state["encounter_name"], "short_rests": 0,
+            "automatic_recovery": deepcopy(state.get('automatic_recovery')),
             "settlement": self._campaign_settlement(state) if state.get('campaign') else {"completed": True, "next_encounter": None, "loot_available": False,
                            "loot_description": "本场没有配置可拾取战利品；目前无法搜刮遗体。"}
             if state["phase"] == "victory" else None,
@@ -302,7 +311,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             elif ability["level"] and not any(int(k) >= ability["level"] and v > 0 for k, v in actor["slots"].items()):
                 reason = "法术位不足"
             elif ability_id == "second_wind" and not actor["resources"].get("second_wind", 0):
-                reason = "短休资源已用完"
+                reason = "本场回气次数已用完"
             elif ability_id == "unarmed_strike" and not actor["attacked"]:
                 reason = "需要先攻击：本回合使用攻击动作后解锁"
             if not reason and ability_id in ("flurry","patient_defence","unarmed_strike") and (actor.get("equipment",{}).get("armor") or actor.get("equipment",{}).get("off_hand")): reason="武艺需要无甲无盾"
@@ -347,7 +356,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
         healing_bonus = modifier(actor["stats"][actor["spell_stat"]]) + (2 + slot if actor["template"] == "cleric" else 0) if actor.get("spell_stat") else 0
         healing_bonus += equipment_bonus(actor, self.content['items'], 'healing_bonus')
         descriptions = {
-            "second_wind": f"自身恢复 1d10+{actor['level']} 生命；短休恢复使用次数。",
+            "second_wind": f"自身恢复 1d10+{actor['level']} 生命；战斗胜利后恢复使用次数。",
             "unarmed_strike": f"先使用攻击动作，再附赠攻击相邻敌人；伤害 1d{6 if actor['level']>=3 else 4}{modifier(actor['stats'][actor['attack_stat']]):+d}。",
             "fire_bolt": f"攻击18米内可见敌人，命中造成 {2 if actor['level']>=5 else 1}d10 火焰伤害。",
             "magic_missile": f"对 18 米内可见敌人发射 {3 + slot - 1} 枚自动命中飞弹，可逐枚分配，每枚 1d4+1 力场伤害。",
@@ -447,6 +456,8 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
         if not isinstance(command, dict) or not isinstance(command.get("type"), str):
             raise GameError("invalid_command", "菜单请求需要 type 字段。")
         kind = command["type"]
+        if kind=='rest':
+            raise GameError('automatic_recovery','胜利后已自动全恢复，无需短休。')
         keys = {"attack": {"type", "actor"}, "help": {"type", "actor"},
                 "move": {"type", "actor"}, "cast": {"type", "actor", "ability", "slot"},
                 "ability": {"type", "actor", "ability"}}
@@ -558,7 +569,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
         if not target or not self._visible(state, target) or (side and target["side"] != side):
             raise GameError("invalid_target", "目标不是当前可见且合法的对象。")
         if "dead" in target["conditions"]:
-            raise GameError("invalid_target", "目标已经死亡，无法攻击、治疗或救助；短休也不会复活。")
+            raise GameError("invalid_target", "目标已经死亡，战中无法攻击、治疗或救助；胜利后自动复苏。")
         return target
 
     def _distance_description(self, state, actor, target):
@@ -630,6 +641,8 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
         if not isinstance(command, dict) or not isinstance(command.get("type"), str):
             raise GameError("invalid_command", "命令需要 type 字段。")
         kind = command["type"]
+        if kind=='rest':
+            raise GameError('automatic_recovery','胜利后已自动全恢复，无需短休。')
         if kind in ("cast", "ability") and isinstance(command.get("ability"), str) and command["ability"] in TACTICAL:
             return self._tactical_preview(state, command)
         if kind in ("cast", "ability") and isinstance(command.get("ability"), str) and command["ability"] in EXPANSION_ABILITIES:
@@ -767,7 +780,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                 if "target" in command and command["target"] != actor["id"]:
                     raise GameError("invalid_target", "回气只能治疗自己。")
                 if actor["resources"].get("second_wind", 0) <= 0:
-                    raise GameError("insufficient_resource", "回气已用完，短休后恢复。")
+                    raise GameError("insufficient_resource", "本场回气已用完，胜利后自动恢复。")
                 result["cost"]["second_wind"] = 1
                 targets = [actor]
             elif ability_id == "bless":
@@ -1208,6 +1221,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                 self._campaign_reward(state)
             else:
                 self._emit(state, "victory", "前哨战胜利！可进入成长、装备、独立演练，或新开十四站远征战役。")
+                self._automatic_recovery(state)
         elif not living_party:
             state["phase"], state["outcome"] = "defeated", "defeated"
             state["pending"] = None

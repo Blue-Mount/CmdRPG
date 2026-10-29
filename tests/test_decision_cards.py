@@ -94,9 +94,9 @@ def test_settlement_choices_follow_numeric_order_in_decision_panel(tmp_path, nod
                                    if ' | ' in line))
             screen.navigate('n')
         right = '\n'.join(pages)
-        assert right.index('1 全队短休') < right.index('12 新开十四站远征战役')
+        assert right.index('1 查看自动恢复') < right.index('12 新开十四站远征战役')
         if node:
-            assert right.index('12 新开十四站远征战役') < right.index('16 营地商店')
+            assert right.index('12 新开十四站远征战役') < right.index('16 商店')
     finally:
         transport.close()
 

@@ -123,7 +123,7 @@ def test_rest_and_log_truncation_preserve_combat_totals(arena):
     before = deepcopy(state['battle_report'])
     legacy = deepcopy(state['battle_summary'])
     state.update(phase='victory', outcome='victory', active_group=[])
-    state, _ = engine.execute(state, dict(type='rest', kind='short'))
+    engine._automatic_recovery(state)
     assert state['battle_report'] == before
     assert state['battle_summary'] == legacy
 

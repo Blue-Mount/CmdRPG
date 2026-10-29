@@ -42,12 +42,12 @@ def test_fourteen_real_battles_to_boss(party, route):
 
 def test_rewards_previews_and_upgrade_gates_are_pure_and_not_repeatable():
     engine, state = victory()
-    assert state['campaign']['gold'] == 120
+    assert state['campaign']['gold'] == 100
     before = deepcopy(state)
     engine._outcome(state)
     engine._campaign_reward(state)
     assert state == before
-    for cmd in ({'type':'camp'}, {'type':'travel','destination':'ridge'},
+    for cmd in ({'type':'travel','destination':'ridge'},
                 {'type':'buy','actor':'P1','item':'greatsword'}):
         assert engine.preview(state, cmd)['description']
         assert state == before
@@ -60,13 +60,12 @@ def test_rewards_previews_and_upgrade_gates_are_pure_and_not_repeatable():
         assert state == before
 
 
-def test_camp_purchase_equip_and_next_map_preserve_loadout_and_consumption():
+def test_purchase_equip_and_next_map_preserve_loadout_and_restore_resources():
     engine, state = victory()
     member = state['actors']['P1']
     member.update(hp=0, conditions=['dead'], death_failure=3)
-    with pytest.raises(GameError):
-        engine.preview(state, {'type':'travel','destination':'road'})
-    state, _ = engine.execute(state, {'type':'camp'})
+    engine._automatic_recovery(state)
+    engine.preview(state, {'type':'travel','destination':'road'})
     assert state['campaign']['gold'] == 100
     assert state['actors']['P1']['hp'] == state['actors']['P1']['max_hp']
     assert state['actors']['P1']['conditions'] == []
@@ -77,13 +76,12 @@ def test_camp_purchase_equip_and_next_map_preserve_loadout_and_consumption():
     state, _ = engine.execute(state, {'type':'equip','actor':'P1','slot':'main_hand','item':'greatsword'})
     state['actors']['P3']['slots']['1'] -= 1
     state['actors']['P1']['resources']['potions'] -= 1
-    party = deepcopy({k: v for k, v in state['actors'].items() if v['side'] == 'party'})
     state, _ = engine.execute(state, {'type':'travel','destination':'ridge'})
     assert state['campaign']['node'] == 'ridge'
     assert state['campaign']['gold'] == 65
     assert state['actors']['P1']['equipment']['main_hand'] == 'greatsword'
-    assert state['actors']['P1']['resources']['potions'] == party['P1']['resources']['potions']
-    assert state['actors']['P3']['slots'] == party['P3']['slots']
+    assert state['actors']['P1']['resources']['potions'] == 2
+    assert state['actors']['P3']['slots'] == state['actors']['P3']['max_slots']
     assert state['map']['heights']['K4'] == 3
     assert state['battle_snapshot']['campaign']['node'] == 'ridge'
     # Defeat and retry restore this encounter, its seed and economy, not stage one.
@@ -147,8 +145,8 @@ def test_campaign_menu_new_run_cancel_shop_and_travel(tmp_path):
         client.handle(greatsword); client.handle('c')
         assert 'greatsword' in client.view['party'][0]['inventory']
         assert client.view['campaign']['gold'] == gold - 35
-        client.handle('15'); client.handle('c')
-        assert client.view['campaign']['node'] in client.view['campaign']['camped']
+        assert '15' not in client.ui.build()
+        assert client.view['automatic_recovery']
         client.handle('14'); client.handle('c')
         assert client.view['campaign']['node'] == 'ridge'
         assert client.view['phase'] == 'combat'
@@ -198,8 +196,8 @@ def test_campaign_save_version_is_distinct_from_m3_and_rejects_wrong_versions():
     engine = Engine()
     ordinary = engine.new_run(seed=42)
     campaign = engine.new_run(seed=42, campaign=True)
-    assert ordinary['content_version'] == '0.7.0-expansion'
-    assert campaign['content_version'] == '0.7.0-campaign'
+    assert ordinary['content_version'] == '0.8.0-auto-rest'
+    assert campaign['content_version'] == '0.8.0-campaign'
     for field, value in [('version', 99), ('content_version', '0.3.0-m3')]:
         invalid = deepcopy(campaign)
         if field == 'version': invalid['campaign']['version'] = value

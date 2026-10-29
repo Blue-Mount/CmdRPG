@@ -226,13 +226,17 @@ def victory():
 def test_staged_shop_purchase_preview_optional_camp_and_equipment_reward_idempotence():
     e,s=victory()
     stock={x['id'] for x in e.view(s)['campaign']['shop']}
-    assert {'wind_staff','striking_staff','focus_staff','warding_staff','mercy_mace','longsword_plus1','greatsword'}<=stock
+    assert {'greatsword','rapier','shortbow','swift_boots'}<=stock
+    assert 'focus_staff' not in stock
     assert 'plate' not in stock and 'bastion_shield' not in stock
     with pytest.raises(GameError): e.preview(s,dict(type='buy',actor='P1',item='plate'))
+    s['campaign']['node']='road'
+    stock={x['id'] for x in e.view(s)['campaign']['shop']}
+    assert {'wind_staff','striking_staff','focus_staff','warding_staff','mercy_mace','longsword_plus1'}<=stock
     s['campaign']['gold']=55
     p=e.preview(s,dict(type='buy',actor='P1',item='longsword_plus1'))
     assert p['equipment_comparison']['after']['attack_bonus']==p['equipment_comparison']['before']['attack_bonus']+1
-    assert any('20' in warning for warning in p['warnings'])
+    assert not any('营地' in warning for warning in p['warnings'])
     s,_=e.execute(s,p['command']); assert s['campaign']['gold']==0
     # Isolate the settlement of an actual configured key encounter.
     s['campaign'].update(node='gate',cleared=['outpost','road'])
@@ -403,12 +407,13 @@ def test_stun_round_trip_receipt_replay_and_cooperative_attack(tmp_path):
 
 def test_equipment_purchase_and_equip_receipts_persist_without_double_charge(tmp_path):
     e,s=victory()
+    s['campaign']['node']='road'  # Arcane weapons arrive in the second batch.
     class Fixture(Engine):
         def new_run(self,*args,**kwargs):return deepcopy(s)
     db=tmp_path/'shop.sqlite3'; store=Repository(db,Fixture()); rid=store.create_run(command_id='new')['run_id']
     buy=dict(type='buy',actor='P3',item='focus_staff')
     result=store.submit(rid,'buy',0,buy)
-    assert result['view']['campaign']['gold']==60
+    assert result['view']['campaign']['gold']==40
     store.close(); store=Repository(db)
     assert store.submit(rid,'buy',0,buy)==result
     cmd=dict(type='equip',actor='P3',slot='main_hand',item='focus_staff')

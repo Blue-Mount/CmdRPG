@@ -104,7 +104,7 @@ def test_ki_ring_cap_recovery_swap_and_growth_preserve_consumption(arena):
         state=equip(engine,state,'P2','ring',None)
         state=equip(engine,state,'P2','ring','ki_ring')
     assert state['actors']['P2']['resources']['ki']==3
-    state,_=engine.execute(state,dict(type='rest',kind='short'))
+    engine._automatic_recovery(state)
     assert state['actors']['P2']['resources']['ki']==11
     state=equip(engine,state,'P2','ring',None)
     state=equip(engine,state,'P2','ring','ki_ring')
@@ -211,13 +211,12 @@ def test_fourteen_station_campaign_with_all_four_purchased_items(route):
         assert state['phase']=='victory'
         progress=state['campaign']; battles.append(progress['node'])
         if progress['completed']: break
-        goods={'gate':[('P1','precision_ring','ring'),('P2','ki_ring','ring')],
+        goods={'switchyard':[('P1','precision_ring','ring'),('P2','ki_ring','ring')],
                'forge':[('P3','weave_ring','ring'),('P4','strider_boots','feet')]}.get(progress['node'],[])
         for actor,item,slot in goods:
             for command in (dict(type='buy',actor=actor,item=item),dict(type='equip',actor=actor,slot=slot,item=item)):
                 engine.preview(state,command);state,_=engine.execute(state,command)
             purchases.append(item)
-        state,_=engine.execute(state,dict(type='camp'))
         routes=engine.view(state)['campaign']['routes']
         destination=route if any(r['id']==route for r in routes) else routes[0]['id']
         state,_=engine.execute(state,dict(type='travel',destination=destination))

@@ -397,8 +397,8 @@ def test_main_completes_default_four_class_battle_with_numeric_inputs(tmp_path):
                       input_reader=reader, output=output.append)
     assert result == 0
     assert clients[0].view["outcome"] == "victory", "\n".join(output[-10:])
-    assert clients[0].view["revision"] == 27  # M3 ki flurry reduces this seeded fight by two commands.
-    assert clients[0].view["short_rests"] == 1
+    assert clients[0].view["revision"] == 26  # M3 ki flurry reduces this seeded fight by two commands.
+    assert clients[0].view["short_rests"] == 0
     assert all("【" in prompt and " > " in prompt for prompt in prompts)
     assert any("选择目的地" in prompt for prompt in prompts)
     assert any("选择目标" in prompt for prompt in prompts)
@@ -538,7 +538,7 @@ def test_real_terminal_process_battle_cancel_invalid_target_and_stale_preview(tm
             assert repository.get_view(run_id)["revision"] == final["revision"]
             terminal.send("1")
             terminal.send("c")
-            assert repository.get_view(run_id)["short_rests"] == 1
+            assert repository.get_view(run_id)["short_rests"] == 0
         terminal.send("q")
         transcript = "\n".join(terminal.transcript)
         assert "不可用" in transcript and "遮挡" in transcript

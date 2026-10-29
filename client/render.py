@@ -197,7 +197,7 @@ def _combat_lines(actor):
     if actor.get('template') == 'rogue':
         lines.append('偷袭：%sd6 · 本回合%s；附赠动作剩余%s；武器射程%s米' % ((actor['level']+1)//2, '已使用' if actor.get('sneak_used') else '可用（条件见目标预览）', actor['budgets']['bonus'], combat.get('weapon_range', 1.5)))
     if actor.get('template') == 'warlock':
-        lines.append('契约法术位：短休/营地恢复全部；魔能爆%s束，痛苦魔爆每束%+d伤害' % (2 if actor['level']>=5 else 1, (actor['stats']['cha']-10)//2 if actor['level']>=2 else 0))
+        lines.append('契约法术位：胜利后自动恢复全部；魔能爆%s束，痛苦魔爆每束%+d伤害' % (2 if actor['level']>=5 else 1, (actor['stats']['cha']-10)//2 if actor['level']>=2 else 0))
     if actor.get('template') == 'monk':
         lines.append('徒手命中 %+d（不含武器专属加值）；气点 %s/%s' % (
             combat['unarmed_attack_bonus'], actor.get('resources', {}).get('ki', 0), actor.get('max_resources', {}).get('ki', 0)))

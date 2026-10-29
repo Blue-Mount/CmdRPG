@@ -757,9 +757,7 @@
         "slots": {
           "1": 2
         },
-        "resources": {
-          "arcane_recovery": 1
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -800,9 +798,7 @@
         "slots": {
           "1": 3
         },
-        "resources": {
-          "arcane_recovery": 1
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -846,9 +842,7 @@
           "1": 4,
           "2": 2
         },
-        "resources": {
-          "arcane_recovery": 2
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -893,9 +887,7 @@
           "1": 4,
           "2": 3
         },
-        "resources": {
-          "arcane_recovery": 2
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -941,9 +933,7 @@
           "2": 3,
           "3": 2
         },
-        "resources": {
-          "arcane_recovery": 3
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -990,9 +980,7 @@
           "2": 3,
           "3": 3
         },
-        "resources": {
-          "arcane_recovery": 3
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -1040,9 +1028,7 @@
           "3": 3,
           "4": 1
         },
-        "resources": {
-          "arcane_recovery": 4
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -1091,9 +1077,7 @@
           "3": 3,
           "4": 2
         },
-        "resources": {
-          "arcane_recovery": 4
-        },
+        "resources": {},
         "abilities": [
           "fire_bolt",
           "magic_missile",
@@ -2298,7 +2282,7 @@
       "cost": "free",
       "level": 0,
       "range": 0,
-      "description": "恢复一个动作；不消耗动作或附赠动作，每次短休一次。",
+      "description": "恢复一个动作；不消耗动作或附赠动作，每场一次，胜利后自动恢复。",
       "resource": "action_surge"
     },
     "rally": {
@@ -2709,7 +2693,7 @@
       "kind": "accessory",
       "category": "accessory",
       "ki_bonus": 2,
-      "description": "2级以上武僧气点上限+2；穿戴不补气，短休或营地休整可恢复至新上限；反复穿脱不能补气。"
+      "description": "2级以上武僧气点上限+2；穿戴不补气，胜利后或出发前自动恢复至新上限；反复穿脱不能补气。"
     },
     "strider_boots": {
       "name": "远行长靴",
@@ -2806,6 +2790,448 @@
       "spell_dc": 1,
       "ac_bonus": 1,
       "description": "要塞独占：法术攻击/DC+1，自身AC+1；不直接增加魔能爆伤害。"
+    },
+    "wayfarer_boots": {
+      "name": "巡途誓靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：移动+3米、属性豁免+1；不影响无甲能力。",
+      "speed_bonus": 3,
+      "save_bonus": 1
+    },
+    "vow_ring": {
+      "name": "并肩誓环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：主手武器命中+1、属性豁免+1；不加成徒手或法术。",
+      "attack_bonus": 1,
+      "save_bonus": 1
+    },
+    "resonance_ring": {
+      "name": "共鸣誓环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：法术攻击/DC各+1；不直接增加伤害。",
+      "spell_attack": 1,
+      "spell_dc": 1
+    },
+    "benevolence_ring": {
+      "name": "济生誓环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：指定治疗法术每目标治疗+1、属性豁免+1。",
+      "healing_bonus": 1,
+      "save_bonus": 1
+    },
+    "railbreaker": {
+      "name": "断轨重剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "martial",
+      "base_weapon": "greatsword",
+      "dice": "2d6",
+      "damage_type": "slashing",
+      "description": "战斗独占：双手，武器命中/伤害+1、属性豁免+1；与要塞单手剑形成攻守选择。",
+      "attack_bonus": 1,
+      "damage_bonus": 1,
+      "save_bonus": 1,
+      "two_handed": true
+    },
+    "stillmind_ring": {
+      "name": "静心气环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：AC+1、武僧气点上限+1；穿戴不补气。",
+      "ac_bonus": 1,
+      "ki_bonus": 1
+    },
+    "swift_rapier": {
+      "name": "逐风细剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "martial",
+      "base_weapon": "rapier",
+      "dice": "1d8",
+      "damage_type": "piercing",
+      "description": "战斗独占：灵巧细剑，武器命中/伤害+1、属性豁免+1；与追猎弓分属近战和远程方向。",
+      "attack_bonus": 1,
+      "damage_bonus": 1,
+      "finesse": true,
+      "save_bonus": 1
+    },
+    "chime_staff": {
+      "name": "鸣雷法杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "staff",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "description": "战斗独占：法术攻击+2、DC+1；与要塞法杖相比牺牲AC，强化法术攻击。",
+      "spell_attack": 2,
+      "spell_dc": 1
+    },
+    "dawn_oath_mace": {
+      "name": "望曦权杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "mace",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "description": "战斗独占：指定治疗法术每目标+2、法术DC+1、属性豁免+1；与守曦权杖形成支援取舍。",
+      "healing_bonus": 2,
+      "spell_dc": 1,
+      "save_bonus": 1
+    },
+    "oathsteel": {
+      "name": "裂铸战甲",
+      "slot": "armor",
+      "kind": "armor",
+      "category": "heavy",
+      "ac": 17,
+      "dice": null,
+      "damage_type": null,
+      "description": "战斗独占：重甲基础AC17、属性豁免+1；与板甲的AC18形成取舍。",
+      "save_bonus": 1
+    },
+    "shadow_leather": {
+      "name": "藏锋皮甲",
+      "slot": "armor",
+      "kind": "armor",
+      "category": "light",
+      "ac": 12,
+      "dice": null,
+      "damage_type": null,
+      "description": "战斗独占：轻甲基础AC12+敏捷、移动+3米。",
+      "speed_bonus": 3
+    },
+    "dawn_scale": {
+      "name": "晨祷鳞甲",
+      "slot": "armor",
+      "kind": "armor",
+      "category": "medium",
+      "ac": 15,
+      "dice": null,
+      "damage_type": null,
+      "description": "战斗独占：基础AC15+至多2敏捷；指定治疗法术每目标+1。",
+      "healing_bonus": 1
+    },
+    "steadfast_boots": {
+      "name": "守心步靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：AC+1、属性豁免+1；与巡途誓靴的移动形成取舍。",
+      "ac_bonus": 1,
+      "save_bonus": 1
+    },
+    "seal_ring": {
+      "name": "封印法环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：法术DC+2、属性豁免+1；与共鸣誓环的法术攻击形成取舍。",
+      "spell_dc": 2,
+      "save_bonus": 1
+    },
+    "vanguard_oath_boots": {
+      "name": "铁誓行军靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：移动+6米、属性豁免+1。",
+      "speed_bonus": 6,
+      "save_bonus": 1
+    },
+    "channel_boots": {
+      "name": "引流法靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：移动+3米、法术攻击+1、属性豁免+1。",
+      "speed_bonus": 3,
+      "spell_attack": 1,
+      "save_bonus": 1
+    },
+    "healer_oath_boots": {
+      "name": "守曦行靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：移动+3米、指定治疗法术每目标+1、属性豁免+1。",
+      "speed_bonus": 3,
+      "healing_bonus": 1,
+      "save_bonus": 1
+    },
+    "flow_boots": {
+      "name": "流息行靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "战斗独占：移动+3米、武僧气点上限+1、属性豁免+1；穿戴不补气。",
+      "speed_bonus": 3,
+      "ki_bonus": 1,
+      "save_bonus": 1
+    },
+    "last_stand_ring": {
+      "name": "决胜武环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "决战独占：主手武器命中/伤害各+2、属性豁免+1；不加成徒手/法术。",
+      "attack_bonus": 2,
+      "damage_bonus": 2,
+      "save_bonus": 1
+    },
+    "stillness_master_ring": {
+      "name": "归元气环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "决战独占：AC+1、主手武器伤害+1、武僧气点上限+3；穿戴不补气。",
+      "ac_bonus": 1,
+      "damage_bonus": 1,
+      "ki_bonus": 3
+    },
+    "final_spell_ring": {
+      "name": "终印法环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "决战独占：法术攻击+1、DC+3；不直接增加法术伤害。",
+      "spell_attack": 1,
+      "spell_dc": 3
+    },
+    "final_dawn_ring": {
+      "name": "终曦圣环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "决战独占：AC+1、属性豁免+1、指定治疗法术每目标+3。",
+      "ac_bonus": 1,
+      "save_bonus": 1,
+      "healing_bonus": 3
+    },
+    "longsword_plus2": {
+      "name": "淬锋长剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "martial",
+      "base_weapon": "longsword",
+      "dice": "1d8",
+      "damage_type": "slashing",
+      "description": "武器命中/伤害+2；单手，可持盾。",
+      "attack_bonus": 2,
+      "damage_bonus": 2
+    },
+    "greatsword_plus2": {
+      "name": "攻坚巨剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "martial",
+      "base_weapon": "greatsword",
+      "dice": "2d6",
+      "damage_type": "slashing",
+      "description": "武器命中/伤害+2；双手，不能持盾。",
+      "attack_bonus": 2,
+      "damage_bonus": 2,
+      "two_handed": true
+    },
+    "scout_bow_plus2": {
+      "name": "鹰眼短弓",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "shortbow",
+      "dice": "1d6",
+      "damage_type": "piercing",
+      "description": "18米，武器命中/伤害+2；双手。",
+      "attack_bonus": 2,
+      "damage_bonus": 2,
+      "two_handed": true,
+      "range": 18
+    },
+    "rapier_plus2": {
+      "name": "精锐细剑",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "martial",
+      "base_weapon": "rapier",
+      "dice": "1d8",
+      "damage_type": "piercing",
+      "description": "灵巧武器，命中/伤害+2；牺牲游隼细剑的AC。",
+      "attack_bonus": 2,
+      "damage_bonus": 2,
+      "finesse": true
+    },
+    "studded_leather": {
+      "name": "铆钉皮甲",
+      "slot": "armor",
+      "kind": "armor",
+      "category": "light",
+      "ac": 12,
+      "dice": null,
+      "damage_type": null,
+      "description": "基础AC12+敏捷；轻甲。"
+    },
+    "full_plate": {
+      "name": "精锻板甲",
+      "slot": "armor",
+      "kind": "armor",
+      "category": "heavy",
+      "ac": 19,
+      "dice": null,
+      "damage_type": null,
+      "description": "重甲基础AC19，不加敏捷；需要重甲熟练。"
+    },
+    "aegis_shield": {
+      "name": "御法盾",
+      "slot": "off_hand",
+      "kind": "shield",
+      "category": "shield",
+      "ac": 2,
+      "dice": null,
+      "damage_type": null,
+      "description": "盾牌AC+2，属性豁免+2。",
+      "save_bonus": 2
+    },
+    "tower_shield": {
+      "name": "重堡盾",
+      "slot": "off_hand",
+      "kind": "shield",
+      "category": "shield",
+      "ac": 4,
+      "dice": null,
+      "damage_type": null,
+      "description": "盾牌AC+4，不增加属性豁免；需要盾牌熟练。"
+    },
+    "assault_staff": {
+      "name": "穿云法杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "staff",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "description": "法术攻击+2，不提高DC；偏向射线等攻击法术。",
+      "spell_attack": 2
+    },
+    "judgement_staff": {
+      "name": "裁定法杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "staff",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "description": "法术DC+2，不提高法术攻击；偏向豁免法术。",
+      "spell_dc": 2
+    },
+    "restoration_mace": {
+      "name": "复苏权杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "mace",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "description": "指定治疗法术每目标+3，无额外AC。",
+      "healing_bonus": 3
+    },
+    "arcane_guard_staff": {
+      "name": "卫术法杖",
+      "slot": "main_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "staff",
+      "dice": "1d6",
+      "damage_type": "bludgeoning",
+      "description": "AC+2、法术攻击+1；偏向生存与攻击。",
+      "ac_bonus": 2,
+      "spell_attack": 1
+    },
+    "marksman_ring": {
+      "name": "锐击指环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "主手武器命中/伤害各+1；不加成徒手或法术。",
+      "attack_bonus": 1,
+      "damage_bonus": 1
+    },
+    "war_caster_ring": {
+      "name": "攻法指环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "法术攻击+2，不提高DC。",
+      "spell_attack": 2
+    },
+    "resilient_ring": {
+      "name": "坚韧指环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "属性豁免+2，包含专注豁免，不改变死亡豁免。",
+      "save_bonus": 2
+    },
+    "mending_ring": {
+      "name": "愈合指环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "指定治疗法术每目标+2。",
+      "healing_bonus": 2
+    },
+    "duelist_boots": {
+      "name": "守势短靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "AC+1，无额外移动。",
+      "ac_bonus": 1
+    },
+    "mage_boots": {
+      "name": "定法短靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "法术DC+1，无额外移动。",
+      "spell_dc": 1
+    },
+    "vanguard_boots": {
+      "name": "先锋长靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "AC+1、移动+3米。",
+      "ac_bonus": 1,
+      "speed_bonus": 3
+    },
+    "warding_boots": {
+      "name": "坚步长靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "移动+3米、属性豁免+2。",
+      "speed_bonus": 3,
+      "save_bonus": 2
+    },
+    "afterglow_ring": {
+      "name": "余辉指环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "description": "法术DC+1、属性豁免+1、指定治疗法术每目标+1；偏向混合支援。",
+      "spell_dc": 1,
+      "save_bonus": 1,
+      "healing_bonus": 1
     }
   }
 }

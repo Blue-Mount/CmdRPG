@@ -191,7 +191,6 @@ def test_upgrade_retains_spent_resources_hp_preparation_equipment_and_aid():
     a = s["actors"]["P3"]
     a["hp"] -= 4
     a["slots"]["1"] -= 2
-    a["resources"]["arcane_recovery"] = 0
     a["prepared"] = ["magic_missile"]
     a["max_hp"] += 5
     a["hp"] += 5
@@ -204,7 +203,7 @@ def test_upgrade_retains_spent_resources_hp_preparation_equipment_and_aid():
     a = s["actors"]["P3"]
     assert a["hp"] == 33 and a["max_hp"] == 37
     assert a["slots"]["1"] == 2 and a["slots"]["3"] == 2
-    assert a["resources"]["arcane_recovery"] == 1
+    assert "arcane_recovery" not in a["resources"]
     assert a["equipment"]["main_hand"] == "staff"
     assert "mage_armor" not in a["prepared"] and "fireball" in a["prepared"]
     for level in (6, 7, 8):
@@ -315,13 +314,12 @@ def test_upcast_cantrip_scaling_preparation_domain_and_recovery():
         after["actors"]["E1"]["hp"] == 975 and after["actors"]["P3"]["slots"]["3"] == 1
     )
     safe(after)
-    after, _ = e.execute(after, {"type": "recover", "actor": "P3", "slot": 3})
-    assert (
-        after["actors"]["P3"]["slots"]["3"] == 2
-        and after["actors"]["P3"]["resources"]["arcane_recovery"] == 0
-    )
-    after, _ = e.execute(after, {"type": "rest", "kind": "short"})
-    assert after["actors"]["P3"]["resources"]["arcane_recovery"] == 0
+    before_recovery = deepcopy(after)
+    with pytest.raises(GameError):
+        e.execute(after, {"type": "recover", "actor": "P3", "slot": 3})
+    assert after == before_recovery
+    e._automatic_recovery(after)
+    assert after["actors"]["P3"]["slots"]["3"] == 2
     with pytest.raises(GameError):
         e.execute(after, {"type": "recover", "actor": "P3", "slot": 3})
     s["actors"]["P3"]["prepared"].append("mage_armor")
@@ -467,7 +465,7 @@ def test_old_save_read_only_adapter_and_explicit_atomic_upgrade(tmp_path):
     assert repo._load(rid) == before
     receipt = repo.submit(rid, "upgrade", 0, command)
     assert receipt["view"]["party"][0]["level"] == 2
-    assert repo._load(rid)["content_version"] == "0.7.0-expansion"
+    assert repo._load(rid)["content_version"] == "0.8.0-auto-rest"
     repo.close()
     repo = Repository(db)
     assert repo.submit(rid, "upgrade", 0, command) == receipt

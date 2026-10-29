@@ -8,7 +8,7 @@ from core.engine import Engine
 from .play_slice import choose
 
 
-def play(templates=None, seed=42, route='road', max_commands=2400, on_step=None, *, chooser=None, branch=None, shopping=False):
+def play(templates=None, seed=42, route='road', max_commands=2400, on_step=None, *, chooser=None, branch=None, shopping=False, reward_loadouts=False):
     engine = Engine()
     state = engine.new_run(templates=templates, seed=seed, campaign=True)
     battles = []
@@ -45,7 +45,7 @@ def play(templates=None, seed=42, route='road', max_commands=2400, on_step=None,
                             report=deepcopy(state.get('battle_report')),
                             levels=[a['level'] for a in state['actors'].values() if a['side'] == 'party']))
         if state['phase'] != 'victory' or progress['completed']:
-            return state, dict(seed=seed, route=route, branch=branch, shopping=shopping, templates=templates or ['fighter','monk','wizard','cleric'],
+            return state, dict(seed=seed, route=route, branch=branch, shopping=shopping, reward_loadouts=reward_loadouts, templates=templates or ['fighter','monk','wizard','cleric'],
                                commands=count, completed=progress['completed'], battles=battles)
         if shopping:
             # An explicit equipment policy, using only public inventory/stock.
@@ -60,12 +60,19 @@ def play(templates=None, seed=42, route='road', max_commands=2400, on_step=None,
                 plan=plans.get(member['template'], ['rapier','duelist_rapier'] if aid==first_rogue else ['scout_bow','rogue_trophy'])
                 current=state['actors'][aid]
                 item=next((item for item in reversed(plan) if item in current['inventory'] or
-                           (item in stock and state['campaign']['gold']-stock[item]['price']>=20)), None)
+                           (item in stock and state['campaign']['gold']>=stock[item]['price'])), None)
                 if item and item not in current['inventory']:
                     write('command',dict(type='buy',actor=aid,item=item))
                 if item and state['actors'][aid]['equipment']['main_hand']!=item:
                     write('command',dict(type='equip',actor=aid,slot='main_hand',item=item))
-        write('command', {'type': 'camp'})
+        if reward_loadouts:
+            for reward in engine.view(state)['settlement'].get('equipment_rewards',[]):
+                aid,item=reward['actor'],reward['item']
+                data=engine.content['items'][item]
+                if data.get('two_handed') and state['actors'][aid]['equipment'].get('off_hand'):
+                    write('command',dict(type='equip',actor=aid,slot='off_hand',item=None))
+                if state['actors'][aid]['equipment'].get(data['slot'])!=item:
+                    write('command',dict(type='equip',actor=aid,slot=data['slot'],item=item))
         routes = engine.view(state)['campaign']['routes']
         preferred = branch if progress['node'] == 'gate' and branch else route
         destination = preferred if any(r['id'] == preferred for r in routes) else routes[0 if route == 'road' else -1]['id']
@@ -81,8 +88,9 @@ def main():
     parser.add_argument('--branch', choices=['switchyard', 'quarry'], help='Second branch; defaults to route-linked choice')
     parser.add_argument('--classes', default='fighter,monk,wizard,cleric')
     parser.add_argument('--shopping', action='store_true', help='Use an explicit legal equipment plan between fights')
+    parser.add_argument('--reward-loadouts', action='store_true', help='Legally equip each battle reward before the next encounter')
     args = parser.parse_args()
-    _, report = play(args.classes.split(','), args.seed, args.route, branch=args.branch, shopping=args.shopping)
+    _, report = play(args.classes.split(','), args.seed, args.route, branch=args.branch, shopping=args.shopping,reward_loadouts=args.reward_loadouts)
     print(json.dumps(report, ensure_ascii=False))
     return 0 if report['completed'] else 1
 

@@ -36,7 +36,7 @@ class CompletedScenario(Engine):
                 member["resources"].update({key: 0 for key in member["max_resources"]})
         state["actors"]["P2"].update(hp=0, conditions=["dead"])
         state["actors"]["P4"].update(hp=0, conditions=["downed"])
-        state.update(phase="victory", outcome="victory", active_group=[], pending=None)
+        self._outcome(state)
         return state
 
 
@@ -55,7 +55,7 @@ def test_victory_menu_explains_what_to_do_and_loot_is_read_only(completed):
     assert client.ui.stage == "settlement"
     assert "战后" in client.ui.context()
     display = "\n".join(output)
-    assert "全队短休" in display
+    assert "自动恢复" in display
     assert "新周目" in display
     assert "战利品" in display
     assert "选择角色" not in client.ui.context()
@@ -70,71 +70,27 @@ def test_victory_menu_explains_what_to_do_and_loot_is_read_only(completed):
     assert transport.repository._load(client.run_id) == before
 
 
-def test_whole_party_rest_previews_cancels_and_applies_once(completed):
-    client, transport, output = completed
-    before = transport.repository._load(client.run_id)
-    output.clear()
-    client.handle("1")
-    assert client.ui.stage == "confirm"
-    assert client.preview_result["cost"] == {"short_rests": 1}
-    assert client.preview_result["targets"] == ["P1", "P3", "P4"]
-    effects = {effect["actor"]: effect for effect in client.preview_result["rest_effects"]}
-    display = "\n".join(output)
-    assert all(a["name"] in display for a in client.view["party"] if a["id"] in effects)
-    assert "法术位" in display
-    assert transport.repository._load(client.run_id) == before
-    client.handle("1")  # Digits cannot execute this confirmation.
-    assert transport.repository._load(client.run_id) == before
-    client.handle("0")
-    assert client.ui.stage == "settlement"
-    assert not client.previews
-    assert transport.repository._load(client.run_id) == before
-    client.handle("1")
-    client.handle("c")
-    after = transport.repository._load(client.run_id)
-    assert client.ui.stage == "settlement"
-    assert after["revision"] == before["revision"] + 1
-    assert after["short_rests"] == before["short_rests"] - 1
-    for aid in ("P1", "P3", "P4"):
-        original, changed = before["actors"][aid], after["actors"][aid]
-        assert changed["hp"] == min(original["max_hp"], original["hp"] + (original["max_hp"] + 1) // 2)
-        assert changed["hp"] == effects[aid]["hp_after"]
-        assert changed["hp"] - original["hp"] == effects[aid]["healing"]
-        assert changed["slots"] == original["slots"]
-        for key, maximum in original["max_resources"].items():
-            assert changed["resources"][key] == (original["resources"][key] if key=="arcane_recovery" else maximum)
-        assert changed["resources"]["potions"] == original["resources"]["potions"]
-        assert "downed" not in changed["conditions"]
-    assert after["actors"]["P2"] == before["actors"]["P2"]
-    # An extra confirmation cannot spend another short rest.
-    client.handle("c")
-    assert transport.repository._load(client.run_id) == after
-    client.handle("1")
-    client.handle("c")
-    assert client.view["short_rests"] == 0
-    revision = client.view["revision"]
-    output.clear()
-    client.handle("1")
-    assert client.ui.stage == "settlement"
-    assert not client.previews
-    assert client.view["revision"] == revision
-    assert "不可用" in "\n".join(output)
+def test_automatic_recovery_menu_is_read_only_and_already_complete(completed):
+    client,transport,output=completed
+    before=transport.repository._load(client.run_id)
+    for _ in range(3):
+        client.handle('1'); client.handle('0')
+        assert client.ui.stage=='settlement' and not client.previews
+    client.handle('c')
+    assert transport.repository._load(client.run_id)==before
+    for a in before['actors'].values():
+        if a['side']=='party':
+            assert a['hp']==a['max_hp'] and a['slots']==a['max_slots'] and not a['conditions']
 
 
-def test_expired_whole_party_rest_preview_does_not_spend_twice(completed):
-    client, transport, output = completed
-    client.handle("1")
-    transport.write(client.run_id, "commands", {
-        "command_id": "other-terminal-rest", "expected_revision": client.view["revision"],
-        "command": {"type": "rest", "kind": "short"},
-    })
-    committed = transport.repository._load(client.run_id)
-    client.handle("c")
-    assert client.ui.stage == "settlement"
-    assert client.view["short_rests"] == 1
-    assert not client.previews
-    assert transport.repository._load(client.run_id) == committed
-    assert any("过期" in line for line in output)
+def test_old_manual_rest_cannot_spend_or_create_pending_confirmation(completed):
+    client,transport,output=completed
+    before=transport.repository._load(client.run_id)
+    with pytest.raises(RepositoryError):
+        transport.repository.preview(client.run_id,dict(type='rest',kind='short'))
+    client.handle('1'); client.handle('c')
+    assert not client.previews and client.ui.stage=='settlement'
+    assert transport.repository._load(client.run_id)==before
 
 
 def test_new_run_requires_confirmation_and_preserves_old_save_and_classes(completed):
@@ -182,12 +138,12 @@ def test_new_run_confirmation_expires_when_the_old_run_changes(completed):
     client.handle("3")
     transport.write(old_id, "commands", {
         "command_id": "other-terminal-before-new", "expected_revision": client.view["revision"],
-        "command": {"type": "rest", "kind": "short"},
+        "command": {"type": "prepare", "actor": "P3", "spells": []},
     })
     client.handle("c")
     assert client.run_id == old_id
     assert client.ui.stage == "settlement"
-    assert client.view["short_rests"] == 1
+    assert client.view["short_rests"] == 0
     assert transport.repository.engine.creations == 1
     assert any("过期" in line for line in output)
 
@@ -270,15 +226,15 @@ def test_stdlib_terminal_settlement_rest_and_new_run(tmp_path):
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "战后" in result.stdout and "全队短休" in result.stdout
+    assert "战后" in result.stdout and "自动恢复" in result.stdout
     assert "未配置" in result.stdout or "没有配置" in result.stdout
     new_id = read_json(config)["last"]["run_id"]
     assert new_id != old_id
     with Repository(database) as repository:
         old = repository._load(old_id)
         assert old["phase"] == "victory"
-        assert old["short_rests"] == 1
-        assert old["revision"] == old_state["revision"] + 1
+        assert old["short_rests"] == 0
+        assert old["revision"] == old_state["revision"]
         assert repository.get_view(new_id)["phase"] == "combat"
     assert not config.with_name("terminal.pending.json").exists()
     (tmp_path / "settlement-transcript.txt").write_text(result.stdout, encoding="utf-8")

@@ -275,7 +275,7 @@ def test_old_equipment_view_and_preview_do_not_mutate_save_and_explicit_equip_ad
     engine.preview(state,command); assert state==before
     after,_=engine.execute(state,command)
     assert after['actors']['P3']['equipment']['ring']=='protection_ring'
-    assert after['content_version']=='0.7.0-expansion'
+    assert after['content_version']=='0.8.0-auto-rest'
 
 
 @pytest.mark.parametrize('seed',[1,7,42])

@@ -1,0 +1,308 @@
+{
+  "date": "2026-10-29",
+  "versions": {
+    "standalone": "0.8.0-auto-rest",
+    "campaign": "0.8.0-campaign",
+    "rules": "0.8.0-provisional"
+  },
+  "tests": {
+    "command": "python -m pytest -q --tb=short",
+    "passed": 529,
+    "subtests": 48,
+    "seconds": 283.6
+  },
+  "economy": {
+    "pre_final_battles_with_growth": 13,
+    "battle_reward_items": 28,
+    "shop_items": 48,
+    "shop_types": 6,
+    "stock_batches": [
+      1,
+      2,
+      4,
+      6,
+      8,
+      10,
+      12,
+      13
+    ]
+  },
+  "campaign_audit": {
+    "total": 8,
+    "completed": 8,
+    "policy": "choose_support; shopping=True; reward_loadouts=True; automatic victory recovery",
+    "runs": [
+      {
+        "party": "balanced",
+        "templates": [
+          "fighter",
+          "monk",
+          "wizard",
+          "cleric"
+        ],
+        "seed": 7,
+        "route": "road",
+        "completed": true,
+        "battles": 14,
+        "purchases": 4,
+        "equipment_rewards": 28,
+        "equip_commands": 36
+      },
+      {
+        "party": "balanced",
+        "templates": [
+          "fighter",
+          "monk",
+          "wizard",
+          "cleric"
+        ],
+        "seed": 42,
+        "route": "road",
+        "completed": true,
+        "battles": 14,
+        "purchases": 4,
+        "equipment_rewards": 28,
+        "equip_commands": 36
+      },
+      {
+        "party": "balanced",
+        "templates": [
+          "fighter",
+          "monk",
+          "wizard",
+          "cleric"
+        ],
+        "seed": 7,
+        "route": "ridge",
+        "completed": true,
+        "battles": 14,
+        "purchases": 4,
+        "equipment_rewards": 28,
+        "equip_commands": 36
+      },
+      {
+        "party": "balanced",
+        "templates": [
+          "fighter",
+          "monk",
+          "wizard",
+          "cleric"
+        ],
+        "seed": 42,
+        "route": "ridge",
+        "completed": true,
+        "battles": 14,
+        "purchases": 4,
+        "equipment_rewards": 28,
+        "equip_commands": 36
+      },
+      {
+        "party": "expanded",
+        "templates": [
+          "fighter",
+          "rogue",
+          "warlock",
+          "cleric"
+        ],
+        "seed": 7,
+        "route": "road",
+        "completed": true,
+        "battles": 14,
+        "purchases": 5,
+        "equipment_rewards": 28,
+        "equip_commands": 39
+      },
+      {
+        "party": "expanded",
+        "templates": [
+          "fighter",
+          "rogue",
+          "warlock",
+          "cleric"
+        ],
+        "seed": 42,
+        "route": "road",
+        "completed": true,
+        "battles": 14,
+        "purchases": 5,
+        "equipment_rewards": 28,
+        "equip_commands": 39
+      },
+      {
+        "party": "expanded",
+        "templates": [
+          "fighter",
+          "rogue",
+          "warlock",
+          "cleric"
+        ],
+        "seed": 7,
+        "route": "ridge",
+        "completed": true,
+        "battles": 14,
+        "purchases": 5,
+        "equipment_rewards": 28,
+        "equip_commands": 39
+      },
+      {
+        "party": "expanded",
+        "templates": [
+          "fighter",
+          "rogue",
+          "warlock",
+          "cleric"
+        ],
+        "seed": 42,
+        "route": "ridge",
+        "completed": true,
+        "battles": 14,
+        "purchases": 5,
+        "equipment_rewards": 28,
+        "equip_commands": 39
+      }
+    ],
+    "diagnostics": {
+      "battles": 112,
+      "max_rounds": 8,
+      "suspect_stalls": [],
+      "downed": 1,
+      "deaths": 0,
+      "nodes": {
+        "archive": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 4.0,
+          "maximum": 5
+        },
+        "bastion": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 4.0,
+          "maximum": 7
+        },
+        "cistern": {
+          "samples": 8,
+          "minimum": 2,
+          "median": 3.0,
+          "maximum": 4
+        },
+        "crossfire": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 5.0,
+          "maximum": 8
+        },
+        "crucible": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 5.0,
+          "maximum": 6
+        },
+        "forge": {
+          "samples": 8,
+          "minimum": 2,
+          "median": 2.5,
+          "maximum": 4
+        },
+        "foundry": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 4.0,
+          "maximum": 5
+        },
+        "gate": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 3.5,
+          "maximum": 4
+        },
+        "heart": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 3.5,
+          "maximum": 5
+        },
+        "observatory": {
+          "samples": 8,
+          "minimum": 2,
+          "median": 3.0,
+          "maximum": 5
+        },
+        "outpost": {
+          "samples": 8,
+          "minimum": 2,
+          "median": 2.0,
+          "maximum": 3
+        },
+        "quarry": {
+          "samples": 4,
+          "minimum": 3,
+          "median": 4.5,
+          "maximum": 6
+        },
+        "ridge": {
+          "samples": 4,
+          "minimum": 3,
+          "median": 3.0,
+          "maximum": 4
+        },
+        "road": {
+          "samples": 4,
+          "minimum": 3,
+          "median": 3.0,
+          "maximum": 4
+        },
+        "sanctum": {
+          "samples": 8,
+          "minimum": 3,
+          "median": 3.5,
+          "maximum": 6
+        },
+        "switchyard": {
+          "samples": 4,
+          "minimum": 3,
+          "median": 4.5,
+          "maximum": 7
+        }
+      }
+    },
+    "limitation": "Two parties, paired branches and two seeds; not an exhaustive balance evaluation. Final UI wording changes covered by the final regression."
+  },
+  "local_logs": [
+    ".qa/economy-auto-final-regression.txt",
+    ".qa/economy-campaign-audit.json",
+    ".qa/economy-label-regression.txt"
+  ],
+  "source_sha256": {
+    "core/__init__.py": "5d26203d4589df80e716cdb9e60441ef5e2ee535e2466ee710195a3c8e9db906",
+    "core/advanced.py": "5784b7e86c4312ed76f5e794bddac86b1f1157eff284e5c4d76d2c301f57da84",
+    "core/battle_report.py": "60464edb21fdd436fb4639593ea727ad617164fecdac579b2f3b07c053f93409",
+    "core/campaign.py": "82173c414ecd043c5ef026643567a952dc748f588390a21c75ebdf81402ae2b6",
+    "core/content.py": "63d8c70b24129a84bb2dc965facd368cadff6f40c3a62867ea744ecbe0c98181",
+    "core/dice.py": "e4ccda3613f262373668c81c8aa1847e50b6dfd6ee897bcf4ffcc790689195dd",
+    "core/engine.py": "b2027b6ce496d51c27c75da1d1df381b1ab48bab19b34d7680ad2c1791c9de82",
+    "core/equipment.py": "701e264636b8bb8e9d3f71373d639603af825c7fa5da94e977fb4cd2382706be",
+    "core/expansion.py": "ee8aaa452722fc10f6da23865d00f80b13b85f2a6a96dfd3be5428af5172d8bd",
+    "core/growth.py": "535b378d5e66739a0067b09a52ec349a121fbdf5fd7bd918304f441350aab0d3",
+    "core/spatial.py": "e18c61a47c3b44905d419fc5f8e7183831fe96c55ffc50a93619a31637bb6a47",
+    "core/tactics.py": "13f6e184c6f655b0fe2361c897e53719ae2f96c1c20c42937e23d198438bdfa2",
+    "client/__init__.py": "92a3d03d12dde912ea16d09d6e6f8dd91fdc747b775cad6f2e9ed2cfacc53f0b",
+    "client/__main__.py": "fd860037dd55b06637cd907eaf6efa4ba12f072e134d3393d8bde0e390758626",
+    "client/cards.py": "46e207635c5a20c6323b70c37209f3fc625ba6211a8138677319d83f78807ea2",
+    "client/cli.py": "1f43809603de01055130e9dc631b42495426f1a93496c540ce91e8b35c2d8bc3",
+    "client/menu.py": "499bf2bbf291d6e49042f584dca87afc0de4cc4f94d682feb8d0a1d76fecd9e0",
+    "client/parser.py": "af1b6f8e2a0b72a51176df55ff556c9fb977d12cad75a3599701727569ea863a",
+    "client/render.py": "d90259fff188489bb8e1094b6a31ee7f3dfb3a87cdca93f7ba919f33c2187be1",
+    "client/transport.py": "fcc9dc60b1728d6e0da704d51a6c4aa607da152707203d2b2b791db410c99924",
+    "content/campaign.json": "fe19f7d051a50adbcbc4a8dd5cfbe4af34f40136f8bd2253fa5a366cf6431a23",
+    "content/growth.json": "a6420264a04d5c68a9e9a8f3fc274e7c855f32660646fd5e773ee0ca2c914a4c",
+    "content/pack.json": "e7aa09b79e330a5b0e09378a68f18500277ad5476040adf398f66a9205f67c5b",
+    "tools/__init__.py": "70e2871cbfe4d4d6b9652d2f5d5348599de87a13920db8e8a84828fb9d1b133c",
+    "tools/audit_campaign.py": "c720216bc996a78dc667b6de4371161bb503b57293a7de4554f86dd10b7a6b1e",
+    "tools/backup.py": "c94c0aaf1a649d6fa5f8e8cc484eb6828516ffc1d48b6ddbbd0d9982e190ffa0",
+    "tools/dev_play.py": "e1eb6991d458299124a03ee826151453768d644b7d712d96ab9d2fa710addf75",
+    "tools/play_campaign.py": "d6ac489ab4c0a2fd66180f2bc3ab3a3b3408d2557251b862fd3e4058e48a08b6",
+    "tools/play_slice.py": "1bc5bda2daa7df644ca3c1058cfba009eebf98050b169b4bd307c8712cfa1898",
+    "tools/sync_saves.py": "17f9c78b06a370e3b4c37ebfed971431b459ad1a7ad63f7dc925c097c929a4c6"
+  }
+}

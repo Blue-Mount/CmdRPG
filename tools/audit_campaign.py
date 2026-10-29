@@ -57,7 +57,7 @@ def audit(seeds=(7, 42), routes=('road', 'ridge'), parties=('balanced', 'physica
                         on_run(row)
     return dict(
         schema_version=2,
-        policy='offense: direct attacks; support: round-one bless/stun; equipped: support plus legal weapon purchases/rewards, first rogue uses rapier; all camp after victories; offense/support do not shop',
+        policy='offense: direct attacks; support: round-one bless/stun; equipped: support plus legal weapon purchases/rewards, first rogue uses rapier; victory automatically restores the party; offense/support do not shop',
         scope='Legal-command smoke runs; observed events only; not human balance or enjoyment validation',
         total=len(runs), completed=sum(r['completed'] for r in runs), runs=runs,
         diagnostics=diagnostics(runs),
