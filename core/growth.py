@@ -181,8 +181,12 @@ def validate_growth(data):
                 raise ValueError("growth: ability unlocked without slot")
     for key, b in data["items"].items():
         BONUSES = {"attack_bonus", "damage_bonus", "spell_attack", "spell_dc", "healing_bonus", "ac_bonus", "speed_bonus", "save_bonus", "ki_bonus"}
-        if set(b) - {"name", "slot", "kind", "dice", "damage_type", "category", "ac", "two_handed", "base_weapon", "description", "range", "finesse"} - BONUSES:
+        if set(b) - {"name", "slot", "kind", "dice", "damage_type", "category", "ac", "two_handed", "base_weapon", "description", "range", "finesse", "tactical_trait"} - BONUSES:
             raise ValueError("growth: unknown equipment effect")
+        if 'tactical_trait' in b:
+            from .playground import TRAITS
+            if not isinstance(b['tactical_trait'], str) or TRAITS.get(b['tactical_trait']) != b.get('slot'):
+                raise ValueError('growth: invalid tactical equipment trait/slot')
         for field in BONUSES & b.keys():
             _number(b[field], "equipment bonus", 0, 6 if field == "speed_bonus" else 3, integer=True)
         if "base_weapon" in b and (not isinstance(b['base_weapon'], str) or b["base_weapon"] not in (base["items"] | data["items"])):
@@ -409,6 +413,9 @@ class GrowthMixin:
             setup.append(dict(type="prepare", actor=a["id"], spells=a["prepared"]))
         encounter = state.get('encounter_slice') or ('heart' if state.get('boss_slice') else 'forge')
         replay_engine = Engine(self._campaign_pack(encounter)) if state.get('battle_slice') or state.get('boss_slice') or state.get('encounter_slice') else self
+        if state.get('playground'):
+            from .playground import prepare_scene
+            replay_engine = Engine(prepare_scene(self._campaign_pack(encounter), state['playground']['scene']))
         fresh = Engine.new_run(
             replay_engine,
             state["name"],

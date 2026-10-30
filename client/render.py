@@ -167,6 +167,7 @@ def render_growth(actor):
     lines.append('属性：'+'，'.join(stats.get(k,k)+' '+str(v) for k,v in actor.get('stats',{}).items()))
     lines.append('装备：'+'，'.join(slots.get(k,k)+' '+v for k,v in actor.get('equipment_names',{}).items()))
     lines.extend(_combat_lines(actor))
+    lines.extend('战术：' + note for note in actor.get('tactical_notes', []))
     lines.append('法术位：'+render_cost({'slot_'+k:v for k,v in actor.get('slots',{}).items()}))
     lines.append('职业资源：'+render_cost(actor.get('resources',{})))
     passives = {'evasion':'闪避：敏捷半伤豁免成功免伤，失败减半（失能时无效）',
@@ -303,6 +304,7 @@ def render_actor_card(actor):
                   str(key).startswith("slot_") for key in entry.get("cost", {})))]
     if common:
         lines.append("常用：" + " / ".join(common))
+    lines.extend('战术：' + note for note in actor.get('tactical_notes', []))
     return "\n".join(lines)
 
 
@@ -657,6 +659,12 @@ def render_map(view, selected=None, reachable=None, detailed=True):
     lines = ["文字地图：上北下南，左西右东；每格 %s米。" % _number(game_map.get("cell_size", "?")),
              "    |" + "|".join(name.center(3) for name in columns) + "|"]
     terrain_notes = []
+    for ident, obj in view.get('tactical_objects', {}).items():
+        status = ('开启' if obj['active'] else '关闭') if ident == 'sluice' else ('生效' if obj['active'] else '已摧毁')
+        terrain_notes.append(f"{obj['position']} {obj['name']}：{status}。" + obj.get('description', ''))
+    for actor in living_party + living_enemies:
+        for note in actor.get('tactical_notes', []):
+            terrain_notes.append(f"{actor['id']}：{note}")
     for row in range(1, height + 1):
         cells = []
         for column in columns:
@@ -667,6 +675,8 @@ def render_map(view, selected=None, reachable=None, detailed=True):
             elif marker is None:
                 if position in game_map.get("walls", []):
                     marker = "#"
+                elif position in {o['position'] for o in view.get('tactical_objects', {}).values()}:
+                    marker = '@'
                 elif position in doors:
                     marker = "<>"
                 else:
@@ -704,6 +714,8 @@ def render_map(view, selected=None, reachable=None, detailed=True):
         notes.append("+ 本回合按真实路径可达；+! 危险，+: 困难，+^ 高地，<+> 门洞，+/ 台阶。")
     if terrain_notes:
         notes.append("地形补充：" + "；".join(terrain_notes))
+    if view.get('tactical_objects'):
+        notes.append('@ 机关/祭坛；邻近后在角色行动菜单操作。祭坛光环需3米内且视线连通。')
     party = []
     for actor in view.get("party", []):
         status = actor.get("status") or ("可操作" if actor["id"] in view.get("active", []) else "倒地" if "downed" in actor.get("conditions", []) else "死亡" if "dead" in actor.get("conditions", []) else "已结束" if actor.get("ended") else "待轮到")

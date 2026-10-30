@@ -3223,6 +3223,31 @@
       "speed_bonus": 3,
       "save_bonus": 2
     },
+    "intercept_shield": {
+      "name": "截击盾",
+      "slot": "off_hand",
+      "kind": "shield",
+      "category": "shield",
+      "ac": 2,
+      "tactical_trait": "intercept",
+      "description": "实验装备：盾牌AC+2。借机攻击命中时令目标本回合剩余移动归零；仍消耗正常反应，不阻止目标攻击。需要盾牌熟练，不能与双手武器并用。"
+    },
+    "withdrawal_boots": {
+      "name": "撤步靴",
+      "slot": "feet",
+      "kind": "accessory",
+      "category": "accessory",
+      "tactical_trait": "withdraw",
+      "description": "实验装备：自己回合成功偷袭后，可选一次额外至多3米撤步，不消耗正常移动、不触发借机；危险地面照常结算，本回合未用即失效。需职业具备偷袭。"
+    },
+    "warding_ring": {
+      "name": "守护指环",
+      "slot": "ring",
+      "kind": "accessory",
+      "category": "accessory",
+      "tactical_trait": "healing_ward",
+      "description": "实验装备：治愈真言、疗伤术或群体治愈真言实际治疗其他队友后，给予下次正伤害-3的守护；至施术者下回合开始失效。不叠加、不刷新；满血、自疗、药水和救助不触发。"
+    },
     "afterglow_ring": {
       "name": "余辉指环",
       "slot": "ring",

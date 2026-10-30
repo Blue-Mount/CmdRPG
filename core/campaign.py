@@ -57,7 +57,7 @@ def _equipment_signature(item):
     defaults = dict(range=1.5, finesse=weapon=='dagger', two_handed=False)
     keys = ('slot','kind','category','dice','damage_type','ac','range','finesse','two_handed',
             'attack_bonus','damage_bonus','spell_attack','spell_dc','healing_bonus','ac_bonus',
-            'speed_bonus','save_bonus','ki_bonus')
+            'speed_bonus','save_bonus','ki_bonus','tactical_trait')
     return tuple(item.get(k, defaults.get(k, 0)) for k in keys)
 
 
@@ -293,6 +293,8 @@ class CampaignMixin:
         return result
 
     def _clear_battle_effects(self, actor):
+        actor.pop('withdraw_ready', None)
+        actor.pop('healing_ward', None)
         actor['max_hp'] -= actor.get('effects', {}).get('aid', {}).get('amount', 0)
         actor['hp'] = min(actor['hp'], actor['max_hp'])
         actor.update(effects={}, concentration=None, temp_hp=0)

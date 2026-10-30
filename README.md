@@ -53,6 +53,21 @@ python -m client
 
 ## 少量时间快速体验
 
+### 战术实验分支
+
+`codex/tactical-playground` 增加三场独立实验：铸场操作熔流、书库拆解护卫、圣所利用/摧毁双祭坛，以及截击盾、撤步靴和守护指环。默认正式战役不启用这些实验规则。
+
+```powershell
+# 默认战士/游荡者/法师/牧师，自动配好实验装备，使用独立临时存档
+.\run-tactical.ps1
+.\run-tactical.ps1 -Encounter archive
+.\run-tactical.ps1 -Encounter sanctum
+# 同阵容、等级和种子，比较原关卡与原装备
+.\run-tactical.ps1 -Encounter sanctum -Baseline
+```
+
+胜利后11号重新演练；`q`退出，启动时会显示恢复命令。实验存档使用独立规则版本，只在支持该实验的分支恢复。操作说明、对照方法和验证边界见[战术实验场](docs/tactical-playground.md)。
+
 以下入口创建独立临时存档，退出后显示的路径可恢复，不读取正常玩家进度。独立战胜利后11号沿用配装重新演练。
 
 ```powershell
