@@ -12,6 +12,8 @@ def bonus(actor, items, field):
     total = 0
     for item_id in actor.get("equipment", {}).values():
         item = items.get(item_id, {})
+        if item.get('slot') == 'off_hand' and item.get('kind') == 'weapon' and field in ('attack_bonus', 'damage_bonus'):
+            continue
         if field == "speed_bonus" and item.get("slot") == "main_hand" and (actor["template"] != "monk" or
                 actor["equipment"].get("armor") or actor["equipment"].get("off_hand")):
             continue
@@ -26,7 +28,7 @@ def stats(actor, items):
     modifier = mod(actor["stats"][actor["attack_stat"]])
     eq = actor.get("equipment", {})
     untrained_armor = any(items.get(eq.get(slot), {}).get("category") not in PROF[actor["template"]]
-                          for slot in ("armor", "off_hand") if eq.get(slot))
+                          for slot in ("armor", "off_hand") if eq.get(slot) and items[eq[slot]].get('kind') != 'weapon')
     martial = actor["template"] == "monk" and not eq.get("armor") and not eq.get("off_hand") and category == 'simple' and weapon.get('range', 1.5) <= 1.5
     spell_mod = mod(actor["stats"][actor["spell_stat"]]) if actor.get("spell_stat") else 0
     return dict(damage_dice=(("1d6" if actor["level"] >= 3 else "1d4") if martial else "0d4+1")

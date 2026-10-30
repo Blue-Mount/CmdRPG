@@ -80,7 +80,7 @@ def test_rewards_are_class_applicable_once_and_never_auto_equipped(stage,templat
 
 def test_eight_stock_batches_six_stores_and_no_repeat_unlocks():
     engine=Engine(); c=engine.campaign_content
-    assert len(c['shop'])==48 and sorted(set(c['shop_unlocks'].values()))==[1,2,4,6,8,10,12,13]
+    assert len(c['shop'])==49 and sorted(set(c['shop_unlocks'].values()))==[1,2,4,6,8,10,12,13]
     assert len(c['shop_types'])==6
     previous=set()
     for stage in [1,2,4,6,8,10,12,13]:

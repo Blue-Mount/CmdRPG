@@ -51,7 +51,10 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
             raise GameError('version_mismatch', '战役路线版本不受支持。')
         if any(a.get("growth_version") not in (None,1) for a in state.get("actors",{}).values()):
             raise GameError("version_mismatch","成长存档版本不受支持，请使用对应版本服务。")
-        if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == ('0.9.0-tactical-lab', '0.9.0-tactical-lab', 1):
+        if (state.get('content_version') == '0.9.0-tactical-lab' and state.get('rules_version') in ('0.9.0-tactical-lab', RULES_VERSION) and state.get('save_version') == 1):
+            return
+        if (state.get('content_version') == (CAMPAIGN_VERSION if state.get('campaign') else CONTENT_VERSION)
+                and state.get('rules_version') == '0.8.0-provisional' and state.get('save_version') == 1):
             return
         old_content = '0.7.0-campaign' if state.get('campaign') else '0.7.0-expansion'
         if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == (old_content, '0.7.0-provisional', 1):
@@ -90,7 +93,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
         if seed is not None and (type(seed) is not int or not 0 <= seed <= dice.MASK):
             raise GameError("invalid_seed", "种子应为 0 至 2^64-1 的整数。")
         state = {
-            "id": str(uuid.uuid4()), "name": name.strip(), "revision": 0,
+            "id": str(uuid.uuid4()), "name": name.strip(), "revision": 0, "balance_revision": 1,
             "content_version": self.content["version"], "rules_version": self.content["rules_version"],
             "save_version": self.content["save_version"], "phase": "combat", "outcome": None,
             "rng_state": secrets.randbits(64) if seed is None else seed,
@@ -214,6 +217,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
         return [aid for aid in (state["active_group"] if state["phase"] == "combat" else []) if state["actors"][aid]["side"] == "party" and self._alive(state["actors"][aid]) and "stunned" not in state["actors"][aid]["conditions"] and not state["actors"][aid]["ended"]]
 
     def view(self, state):
+        state = self._balance_state(state)
         self._check_version(state)
         party, enemies = [], []
         common = ("id", "name", "template", "side", "level", "hp", "max_hp", "ac", "position", "speed", "stats", "conditions", "ended", "budgets")
@@ -245,6 +249,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
                 result['passives'] = deepcopy(actor.get('passives', []))
                 if 'max_resources' in result: result['max_resources'].pop('arcane_recovery',None)
                 result['sneak_used'] = actor.get('sneak_used', False)
+                result['stealth'] = actor.get('stealth')
                 result['growth_history'] = deepcopy(actor.get('growth_history', []))
                 result['last_growth'] = deepcopy(actor.get('last_growth'))
                 from .equipment import stats
@@ -306,6 +311,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
         }
 
     def actions(self, state, actor_id):
+        state = self._balance_state(state)
         actor = state["actors"].get(actor_id)
         if not actor or actor["side"] != "party":
             raise GameError("unknown_actor", "未找到队员。")
@@ -327,6 +333,11 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
                 reason = "需要先攻击：本回合使用攻击动作后解锁"
             if not reason and ability_id in ("flurry","patient_defence","unarmed_strike") and (actor.get("equipment",{}).get("armor") or actor.get("equipment",{}).get("off_hand")): reason="武艺需要无甲无盾"
             if not reason and ability.get("resource") and not actor["resources"].get(ability["resource"],0): reason="职业资源不足"
+            if not reason and ability_id == 'offhand_attack': reason = self._offhand_error(actor)
+            if not reason and ability_id == 'cunning_hide':
+                if actor.get('stealth'): reason = '已经躲藏'
+                elif any(spatial.distance(state['map'], a['position'], actor['position']) <= 3 for a in self._hide_observers(state, actor)):
+                    reason = '敌人视线内3米内不能躲藏'
             if not reason and ability["level"] and actor.get("growth_version") and ability_id not in actor.get("prepared",[]): reason="法术尚未准备"
             if not reason and (ability["level"] or ability_id in ("fire_bolt","sacred_flame","eldritch_blast")):
                 try: self._casting_equipment(actor)
@@ -463,6 +474,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
         return entries
 
     def options(self, state, command):
+        state = self._balance_state(state)
         """Pure menu discovery using the same geometry and legal previews as execution."""
         self._check_version(state)
         if not isinstance(command, dict) or not isinstance(command.get("type"), str):
@@ -621,6 +633,8 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
     def _attack_roll_info(self, state, attacker, target, ranged=False):
         distance = spatial.distance(state["map"], attacker["position"], target["position"])
         advantages, disadvantages = [], []
+        if attacker.get('stealth') and not self._spots_rogue(state, target, attacker):
+            advantages.append('攻击者躲藏且未被目标发现')
         if "stunned" in target["conditions"]:
             advantages.append("目标被震慑")
         if "downed" in target["conditions"]:
@@ -633,7 +647,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
             disadvantages.append("攻击者伏地")
         eq=attacker.get('equipment',{})
         if attacker['side']=='party':
-            if any(self.content['items'].get(eq.get(k),{}).get('category') not in PROF[attacker['template']] for k in ('armor','off_hand') if eq.get(k)):
+            if any(self.content['items'].get(eq.get(k),{}).get('category') not in PROF[attacker['template']] for k in ('armor','off_hand') if eq.get(k) and self.content['items'][eq[k]].get('kind') != 'weapon'):
                 disadvantages.append("护甲或盾牌未熟练")
         if ranged:
             if any(self._alive(a) and "stunned" not in a["conditions"] and a["side"] != attacker["side"] and (attacker["side"] == "enemy" or self._visible(state, a)) and spatial.reach_distance(state["map"], attacker["position"], a["position"]) <= 1.5 and spatial.line_of_sight(state["map"], attacker["position"], a["position"]) for a in state["actors"].values()):
@@ -649,6 +663,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
         return "bless" in actor["effects"]
 
     def preview(self, state, command, *, _routes=None):
+        state = self._balance_state(state)
         checked = self._preview(state, command, _routes=_routes)
         if checked['command'].get('type') in ('attack', 'cast', 'ability'):
             for aid in checked.get('targets', []):
@@ -896,16 +911,32 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
         return threats
 
     def execute(self, state, command):
+        state = self._balance_state(state)
         work, events = self._execute(state, command)
         self._stamp_version(work)
         return work, events
+
+    def _balance_state(self, state):
+        """Read-only adapter; the next successful command persists the upgrade."""
+        if state.get('balance_revision') == 1:
+            return state
+        state = deepcopy(state)
+        for actor in state['actors'].values():
+            if actor.get('template') == 'rogue':
+                for aid in ('offhand_attack', 'cunning_hide'):
+                    if (aid != 'cunning_hide' or actor.get('level', 1) >= 2) and aid not in actor['abilities']:
+                        actor['abilities'].append(aid)
+            if actor.get('equipment', {}).get('main_hand') == 'duelist_rapier':
+                recalculate(actor, self.content['items'])
+        state['balance_revision'] = 1
+        return state
 
     def _stamp_version(self, state):
         state.update(content_version=CAMPAIGN_VERSION if state.get('campaign') else CONTENT_VERSION,
                      rules_version=RULES_VERSION)
         if state.get('playground') or any(self._has_trait(a, trait) for a in state['actors'].values()
                                           for trait in ('intercept', 'withdraw', 'healing_ward')):
-            state.update(content_version='0.9.0-tactical-lab', rules_version='0.9.0-tactical-lab')
+            state.update(content_version='0.9.0-tactical-lab', rules_version=RULES_VERSION)
 
     def _execute(self, state, command):
         if isinstance(command, dict) and isinstance(command.get('type'), str) and command['type'] in CAMPAIGN_COMMANDS:
@@ -983,6 +1014,8 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
 
     def _cast(self, state, actor, command, target_ids):
         ability_id = command["ability"]
+        if ability_id not in ('cunning_hide', 'offhand_attack', 'eldritch_blast', 'cunning_dash', 'cunning_disengage'):
+            self._reveal_rogue(state, actor)
         if ability_id in EXPANSION_ABILITIES - {"shatter"}:
             return self._expansion_cast(state, actor, command)
         if ability_id in TACTICAL:
@@ -1102,6 +1135,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
                 if self._alive(target):
                     radiant, radiant_detail = dice.roll(state, '1d8', critical)
                     self._damage(state, target, radiant, 'radiant', '神圣打击', radiant_detail, critical, source_actor=attacker['id'])
+        self._reveal_rogue(state, attacker)
         return hit
 
     def _save_failure_probability(self, target, stat, dc):
@@ -1160,6 +1194,8 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
             if damage_type in target.get("vulnerabilities", []):
                 amount *= 2
         amount = self._playground_reduce(state, target, amount)
+        if amount > 0:
+            self._reveal_rogue(state, target)
         temporary = min(target.get("temp_hp", 0), amount)
         target["temp_hp"] = target.get("temp_hp", 0) - temporary
         damage = amount - temporary
@@ -1223,6 +1259,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
             self._emit(state, "stable", f"{actor['id']} 死亡豁免成功三次，伤势稳定，仍需治疗。")
 
     def _start_actor(self, state, actor):
+        self._reveal_rogue(state, actor)
         self._playground_start(state, actor)
         actor["conditions"] = [c for c in actor["conditions"] if c not in ("dodge", "disengaged")]
         actor["budgets"] = {"action": 1, "bonus": 2 if "fast_hands" in actor.get("passives", []) else 1, "reaction": 1, "movement": actor["speed"]}
@@ -1347,6 +1384,9 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
             was_visible = self._visible(state, mover)
             source = mover["position"]
             mover["position"] = destination
+            for hidden in state['actors'].values():
+                if hidden.get('stealth') and any(self._spots_rogue(state, a, hidden) for a in self._hide_observers(state, hidden)):
+                    self._reveal_rogue(state, hidden)
             mover["budgets"]["movement"] -= price
             now_visible = self._visible(state, mover)
             if now_visible:
@@ -1390,7 +1430,7 @@ class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, Campa
         return work, [deepcopy(e) for e in work["event_log"] if e["seq"] > before]
 
     def _enemy_targets(self, state, enemy):
-        return [a for a in state["actors"].values() if a["side"] == "party" and self._alive(a) and spatial.distance(state["map"], enemy["position"], a["position"]) <= 18 and spatial.line_of_sight(state["map"], enemy["position"], a["position"])]
+        return [a for a in state["actors"].values() if a["side"] == "party" and self._alive(a) and spatial.distance(state["map"], enemy["position"], a["position"]) <= 18 and spatial.line_of_sight(state["map"], enemy["position"], a["position"]) and self._spots_rogue(state, enemy, a)]
 
     def _enemy_turn(self, state, enemy):
         if self._guard_turn(state, enemy):

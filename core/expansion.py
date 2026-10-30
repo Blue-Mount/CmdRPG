@@ -7,10 +7,45 @@ from .growth import mod
 
 
 CLASS_NAMES = {'rogue': ('游荡者', '盗贼'), 'warlock': ('邪术师', '邪魔宗主')}
-ABILITIES = {'eldritch_blast', 'cunning_dash', 'cunning_disengage', 'false_life', 'shatter'}
+ABILITIES = {'eldritch_blast', 'cunning_dash', 'cunning_disengage', 'cunning_hide', 'offhand_attack', 'false_life', 'shatter'}
 
 
 class ExpansionMixin:
+    def _hide_observers(self, state, actor):
+        return [a for a in state['actors'].values()
+                if a['side'] != actor['side'] and self._alive(a) and 'stunned' not in a['conditions']
+                and spatial.distance(state['map'], a['position'], actor['position']) <= 18
+                and spatial.line_of_sight(state['map'], a['position'], actor['position'])]
+
+    def _spots_rogue(self, state, observer, actor):
+        if not actor.get('stealth'):
+            return True
+        if observer not in self._hide_observers(state, actor):
+            return False
+        return (spatial.distance(state['map'], observer['position'], actor['position']) <= 3
+                or 10 + mod(observer['stats']['wis']) >= actor['stealth'])
+
+    def _reveal_rogue(self, state, actor):
+        if actor.pop('stealth', None) is not None:
+            self._emit(state, 'effect', f"{actor['id']} 解除躲藏。")
+
+    def _offhand_error(self, actor):
+        weapon = self.content['items'][actor['weapon']]
+        if not actor.get('attacked'):
+            return '需要先使用攻击动作（打空也可以）。'
+        if actor.get('equipment', {}).get('off_hand') != 'offhand_dagger':
+            return '需要在副手槽装备副手匕首。'
+        if weapon.get('range', 1.5) > 1.5 or not (weapon.get('finesse') or actor['weapon'] == 'dagger'):
+            return '主手需要灵巧近战武器；短弓不能配副手攻击。'
+        return ''
+
+    def _offhand_actor(self, actor):
+        trial = deepcopy(actor)
+        trial['weapon'] = 'offhand_dagger'
+        trial['equipment'].update(main_hand='offhand_dagger', off_hand=None)
+        trial['attack_stat'] = max(('str', 'dex'), key=lambda key: trial['stats'][key])
+        return trial
+
     def _support_turn(self, state, enemy):
         support = enemy.get('support')
         if not support or support['uses'] <= 0 or enemy['budgets']['action'] <= 0:
@@ -97,6 +132,32 @@ class ExpansionMixin:
             raise GameError('invalid_slot', '该能力不使用法术位。')
         result = dict(command=normalized, revision=state['revision'], cost=cost, targets=[], warnings=[],
                       description=ability['name'] + '：' + ability['description'])
+        if aid == 'offhand_attack':
+            reason = self._offhand_error(actor)
+            if reason:
+                raise GameError('offhand_unavailable', reason)
+            if 'targets' in command:
+                raise GameError('invalid_target', '副手攻击只接受一个target。')
+            target = self._target(state, command.get('target'), 'enemy')
+            self._in_range(state, actor, target, 1.5)
+            trial = self._offhand_actor(actor)
+            info = self._attack_roll_info(state, trial, target)
+            bonus = self._weapon_proficiency(trial) + mod(trial['stats'][trial['attack_stat']])
+            sneak = self._sneak_attack(state, trial, target)
+            result.update(targets=[target['id']], attack_roll=info, sneak_dice=f'{sneak}d6' if sneak else None,
+                          hit_probability=dice.hit_probability(bonus, target['ac'], info['advantage'], info['disadvantage'], self._blessed(actor)))
+            if sneak:
+                result['description'] += f' 命中追加偷袭{sneak}d6。'
+            return result
+        if aid == 'cunning_hide':
+            if actor.get('stealth'):
+                raise GameError('already_hidden', '已经躲藏，无需重复使用。')
+            observers = self._hide_observers(state, actor)
+            if any(spatial.distance(state['map'], a['position'], actor['position']) <= 3 for a in observers):
+                raise GameError('too_close_to_hide', '敌人视线内3米内不能躲藏，请先撤离拉开距离。')
+            dc = max((10 + mod(a['stats']['wis']) for a in observers), default=0)
+            result.update(stealth_dc=dc, stealth_bonus=mod(actor['stats']['dex']) + actor['proficiency'])
+            result['description'] += f" 本次隐匿加值{result['stealth_bonus']:+d}，察觉DC {dc}；平局被发现。"
         if aid != 'eldritch_blast':
             if 'target' in command or 'targets' in command:
                 raise GameError('invalid_target', '此能力无需目标。')
@@ -133,6 +194,26 @@ class ExpansionMixin:
         elif aid == 'cunning_disengage':
             if 'disengaged' not in actor['conditions']:
                 actor['conditions'].append('disengaged')
+        elif aid == 'cunning_hide':
+            observers = self._hide_observers(state, actor)
+            natural, rolls = dice.d20(state)
+            score = natural + mod(actor['stats']['dex']) + actor['proficiency']
+            dc = max((10 + mod(a['stats']['wis']) for a in observers), default=0)
+            success = score > dc
+            if success:
+                actor['stealth'] = score
+            self._emit(state, 'stealth', f"{actor['id']} 隐匿检定 {score} 对察觉DC {dc}：{'成功' if success else '失败'}。", rolls=rolls, total=score, dc=dc, success=success)
+        elif aid == 'offhand_attack':
+            trial = self._offhand_actor(actor)
+            # Swap only the attacking hand; all damage, sneak and equipment triggers
+            # still run on the real actor through the shared attack resolver.
+            original = actor['weapon'], actor['attack_stat'], deepcopy(actor['equipment'])
+            actor.update(weapon=trial['weapon'], attack_stat=trial['attack_stat'], equipment=trial['equipment'])
+            try:
+                self._attack(state, actor, state['actors'][command['target']], '1d4', 'piercing', actor['attack_stat'],
+                             damage_modifier=min(0, mod(actor['stats'][actor['attack_stat']])), weapon_attack=True)
+            finally:
+                actor['weapon'], actor['attack_stat'], actor['equipment'] = original
         elif aid == 'false_life':
             amount, detail = dice.roll(state, f"1d4+{4 + 5 * (command['slot'] - 1)}")
             actor['temp_hp'] = max(actor['temp_hp'], amount)

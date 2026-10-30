@@ -6,7 +6,7 @@ from pathlib import Path
 
 LEVEL_CAP = 8
 CONTENT_VERSION = '0.8.0-auto-rest'
-RULES_VERSION = '0.8.0-provisional'
+RULES_VERSION = '0.10.0-rogue'
 EQUIPMENT_SLOTS = ("main_hand", "off_hand", "armor", "ring", "feet")
 
 def load_growth(path=None):
@@ -42,7 +42,7 @@ def validate_growth(data):
         "stunning_strike",
         "blight",
         "death_ward",
-        "eldritch_blast", "false_life", "shatter", "cunning_dash", "cunning_disengage",
+        "eldritch_blast", "false_life", "shatter", "cunning_dash", "cunning_disengage", "cunning_hide", "offhand_attack",
     }
     if (
         data.get("version") != 1
@@ -87,6 +87,8 @@ def validate_growth(data):
             "shatter": ("action", 2, 18, None),
             "cunning_dash": ("bonus", 0, 0, None),
             "cunning_disengage": ("bonus", 0, 0, None),
+            "cunning_hide": ("bonus", 0, 0, None),
+            "offhand_attack": ("bonus", 0, 1.5, None),
         }
         if (b["cost"], b["level"], b["range"], b.get("resource")) != specs[key]:
             raise ValueError("growth: effect metadata mismatch")
@@ -194,7 +196,7 @@ def validate_growth(data):
         if (
             b.get("kind") not in ("weapon", "armor", "shield", "accessory")
             or b.get("slot")
-            not in {"weapon": ("main_hand",), "armor": ("armor",), "shield": ("off_hand",), "accessory": ("ring", "feet")}[
+            not in {"weapon": ("main_hand", "off_hand"), "armor": ("armor",), "shield": ("off_hand",), "accessory": ("ring", "feet")}[
                 b["kind"]
             ]
         ):
@@ -221,7 +223,7 @@ def validate_growth(data):
 
 
 DATA = load_growth()
-SELF = {"action_surge", "patient_defence", "mass_healing_word", "preserve_life", "aid", "false_life", "cunning_dash", "cunning_disengage"}
+SELF = {"action_surge", "patient_defence", "mass_healing_word", "preserve_life", "aid", "false_life", "cunning_dash", "cunning_disengage", "cunning_hide"}
 FRIENDLY = {"rally", "death_ward"}
 PROF = {
     "fighter": {"simple", "martial", "light", "medium", "heavy", "shield"},
@@ -692,7 +694,7 @@ class GrowthMixin:
         eq = a.get("equipment", {})
         for slot in ("armor", "off_hand"):
             item = self.content["items"].get(eq.get(slot), {})
-            if item and item.get("category") not in PROF[a["template"]]:
+            if item and item.get("kind") != "weapon" and item.get("category") not in PROF[a["template"]]:
                 self._growth_error("armor_proficiency", "未熟练护甲或盾牌阻止施法。")
 
     def _new_effect(self, state, a, c, ids):

@@ -173,7 +173,7 @@ def render_growth(actor):
     passives = {'evasion':'闪避：敏捷半伤豁免成功免伤，失败减半（失能时无效）',
                 'blessed_healer':'受祝福的医者：法术治疗其他队友时，自身恢复2+环级（每次施法一次）',
                 'sneak_attack':'偷袭：自己回合每次命中至多触发一次；需要灵巧/远程武器，优势或清醒队友贴住目标且无净劣势。伤害随等级提高；不用于借机攻击',
-                'fast_hands':'快手：每回合两个附赠动作，可用于灵巧动作和药水；不增加普通动作',
+                'fast_hands':'快手：每回合两个附赠动作，可用于副手攻击、躲藏、疾走、撤离和药水；偷袭仍每回合一次',
                 'agonizing_blast':'痛苦魔爆：魔能爆每束命中伤害加魅力修正',
                 'dark_blessing':'邪魔祝福：亲自击败敌人获得等级+魅力修正临时生命；同类取高、不叠加',
                 'divine_strike':'神圣打击：自己回合首次武器命中追加1d8光耀，暴击翻倍骰数；不用于借机攻击'}
@@ -196,6 +196,8 @@ def _combat_lines(actor):
         '移动：剩余%s米 / 速度%s米' % (_number(actor.get('budgets', {}).get('movement', 0)), _number(combat['speed'])),
         '熟练：' + '、'.join(names.get(k,k) for k in trained) + '；盾牌熟练：' + ('有' if 'shield' in trained else '无')]
     if actor.get('template') == 'rogue':
+        if actor.get('stealth'):
+            lines.append('躲藏中：隐匿检定值%s；被发现、攻击、其他施法或下回合开始解除' % actor['stealth'])
         lines.append('偷袭：%sd6 · 本回合%s；附赠动作剩余%s；武器射程%s米' % ((actor['level']+1)//2, '已使用' if actor.get('sneak_used') else '可用（条件见目标预览）', actor['budgets']['bonus'], combat.get('weapon_range', 1.5)))
     if actor.get('template') == 'warlock':
         lines.append('契约法术位：胜利后自动恢复全部；魔能爆%s束，痛苦魔爆每束%+d伤害' % (2 if actor['level']>=5 else 1, (actor['stats']['cha']-10)//2 if actor['level']>=2 else 0))

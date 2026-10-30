@@ -287,7 +287,7 @@ def test_new_equipment_directions_have_actual_costs_and_combat_effects(arena):
     assert preview['equipment_comparison']['after']['weapon_range']==1.5
     after,_=engine.execute(state,command)
     assert after['actors']['P1']['attack_stat']=='dex'
-    assert after['actors']['P1']['ac']==state['actors']['P1']['ac']+1
+    assert after['actors']['P1']['ac']==state['actors']['P1']['ac']
     after,_=engine.execute(state,dict(type='equip',actor='P2',slot='main_hand',item='fiend_staff'))
     assert after['actors']['P2']['ac']==state['actors']['P2']['ac']+2
     before_attack=engine.view(after)['party'][1]['combat_stats']['spell_attack']

@@ -1591,7 +1591,9 @@
         "proficiency": 2,
         "slots": {},
         "resources": {},
-        "abilities": [],
+        "abilities": [
+          "offhand_attack"
+        ],
         "extra_attack": 0,
         "spell_stat": null,
         "save_proficiencies": [
@@ -1631,7 +1633,9 @@
         "resources": {},
         "abilities": [
           "cunning_dash",
-          "cunning_disengage"
+          "cunning_disengage",
+          "offhand_attack",
+          "cunning_hide"
         ],
         "extra_attack": 0,
         "spell_stat": null,
@@ -1672,7 +1676,9 @@
         "resources": {},
         "abilities": [
           "cunning_dash",
-          "cunning_disengage"
+          "cunning_disengage",
+          "offhand_attack",
+          "cunning_hide"
         ],
         "extra_attack": 0,
         "spell_stat": null,
@@ -1714,7 +1720,9 @@
         "resources": {},
         "abilities": [
           "cunning_dash",
-          "cunning_disengage"
+          "cunning_disengage",
+          "offhand_attack",
+          "cunning_hide"
         ],
         "extra_attack": 0,
         "spell_stat": null,
@@ -1756,7 +1764,9 @@
         "resources": {},
         "abilities": [
           "cunning_dash",
-          "cunning_disengage"
+          "cunning_disengage",
+          "offhand_attack",
+          "cunning_hide"
         ],
         "extra_attack": 0,
         "spell_stat": null,
@@ -1798,7 +1808,9 @@
         "resources": {},
         "abilities": [
           "cunning_dash",
-          "cunning_disengage"
+          "cunning_disengage",
+          "offhand_attack",
+          "cunning_hide"
         ],
         "extra_attack": 0,
         "spell_stat": null,
@@ -1840,7 +1852,9 @@
         "resources": {},
         "abilities": [
           "cunning_dash",
-          "cunning_disengage"
+          "cunning_disengage",
+          "offhand_attack",
+          "cunning_hide"
         ],
         "extra_attack": 0,
         "spell_stat": null,
@@ -1883,7 +1897,9 @@
         "resources": {},
         "abilities": [
           "cunning_dash",
-          "cunning_disengage"
+          "cunning_disengage",
+          "offhand_attack",
+          "cunning_hide"
         ],
         "extra_attack": 0,
         "spell_stat": null,
@@ -2417,6 +2433,22 @@
       "level": 0,
       "range": 0,
       "description": "消耗一个附赠动作，本回合移动不触发借机攻击；不消耗普通动作。"
+    },
+    "offhand_attack": {
+      "name": "副手攻击",
+      "effect": "offhand_attack",
+      "cost": "bonus",
+      "range": 1.5,
+      "level": 0,
+      "description": "先使用攻击动作，主手须为灵巧近战武器，副手须装备匕首。消耗一个附赠动作攻击：1d4，不加正属性伤害；可触发本回合尚未使用的偷袭。"
+    },
+    "cunning_hide": {
+      "name": "灵巧动作：躲藏",
+      "effect": "cunning_hide",
+      "cost": "bonus",
+      "range": 0,
+      "level": 0,
+      "description": "消耗一个附赠动作作敏捷（隐匿）检定，对抗可见敌人的被动察觉；敌人3米内不能躲藏。成功后未被发现时攻击有优势，攻击无论命中均解除；移动接受察觉检查，最迟下回合开始解除。"
     }
   },
   "items": {
@@ -2749,8 +2781,7 @@
       "finesse": true,
       "attack_bonus": 1,
       "damage_bonus": 1,
-      "ac_bonus": 1,
-      "description": "灵巧细剑，武器命中/伤害+1，自身AC+1；近战攻守方向。"
+      "description": "灵巧细剑，武器命中/伤害+1；力量、敏捷取高，可偷袭；不提供AC。"
     },
     "fiend_staff": {
       "name": "灰誓护杖",
@@ -3065,7 +3096,7 @@
       "base_weapon": "rapier",
       "dice": "1d8",
       "damage_type": "piercing",
-      "description": "灵巧武器，命中/伤害+2；牺牲游隼细剑的AC。",
+      "description": "灵巧武器，命中/伤害+2；相比游隼细剑进一步强化命中与伤害。",
       "attack_bonus": 2,
       "damage_bonus": 2,
       "finesse": true
@@ -3257,6 +3288,17 @@
       "spell_dc": 1,
       "save_bonus": 1,
       "healing_bonus": 1
+    },
+    "offhand_dagger": {
+      "name": "副手匕首",
+      "slot": "off_hand",
+      "kind": "weapon",
+      "category": "simple",
+      "base_weapon": "dagger",
+      "dice": "1d4",
+      "damage_type": "piercing",
+      "finesse": true,
+      "description": "副手槽，不能同时持盾或双手武器。游荡者主手为灵巧近战武器且本回合使用过攻击动作后，可消耗附赠动作攻击；不加正属性伤害，可触发尚未使用的偷袭。本包允许细剑配匕首。"
     }
   }
 }

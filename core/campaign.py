@@ -69,7 +69,7 @@ def _validate_economy(data, items, growth):
         raise ValueError('campaign: invalid shop types')
     if not isinstance(categories, dict) or set(categories)!=set(data['shop']) or any(not isinstance(v,str) or v not in required for v in categories.values()):
         raise ValueError('campaign: invalid shop categories')
-    slots = dict(weapons={'main_hand'},arcane={'main_hand'},armor={'armor','off_hand'},rings={'ring'},boots={'feet'},supplies={'consumable'})
+    slots = dict(weapons={'main_hand','off_hand'},arcane={'main_hand'},armor={'armor','off_hand'},rings={'ring'},boots={'feet'},supplies={'consumable'})
     if any(items[key]['slot'] not in slots[category] for key,category in categories.items()):
         raise ValueError('campaign: shop category does not match equipment slot')
     old_shop, old_unlocks = data.get('legacy_shop'), data.get('legacy_shop_unlocks')

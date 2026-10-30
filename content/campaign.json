@@ -2641,7 +2641,8 @@
     "mage_boots": 90,
     "vanguard_boots": 125,
     "warding_boots": 115,
-    "afterglow_ring": 130
+    "afterglow_ring": 130,
+    "offhand_dagger": 10
   },
   "shop_unlocks": {
     "healing_potion": 1,
@@ -2691,7 +2692,8 @@
     "full_plate": 12,
     "vanguard_boots": 12,
     "warding_boots": 13,
-    "afterglow_ring": 13
+    "afterglow_ring": 13,
+    "offhand_dagger": 1
   },
   "legacy_nodes": {
     "outpost": {
@@ -4788,6 +4790,7 @@
     "mage_boots": "boots",
     "vanguard_boots": "boots",
     "warding_boots": "boots",
-    "afterglow_ring": "rings"
+    "afterglow_ring": "rings",
+    "offhand_dagger": "weapons"
   }
 }
