@@ -12,11 +12,13 @@ from saves.storage import Repository
 
 
 class PlaygroundEngine(Engine):
-    def __init__(self, levels, loadouts=None, battle_slice=False, boss_slice=False, encounter=None):
+    def __init__(self, levels, loadouts=None, battle_slice=False, boss_slice=False, encounter=None, tactical=False):
         super().__init__()
         self.battle_slice = battle_slice
         self.boss_slice = boss_slice
         self.encounter_slice = encounter
+        if tactical and encounter not in ('foundry', 'archive', 'sanctum'):
+            raise ValueError('战术实验需指定 foundry、archive 或 sanctum。')
         if battle_slice or boss_slice or encounter:
             from core.growth import DATA
             self.content.update(self._campaign_pack(encounter or ('heart' if boss_slice else 'forge')))
@@ -25,6 +27,12 @@ class PlaygroundEngine(Engine):
             self.content['abilities'].update(DATA['abilities'])
             self.content['items'].update(DATA['items'])
             self._install_classes()
+        if tactical:
+            from core.playground import prepare_scene
+            from core.content import _validate
+            pack = prepare_scene(self._campaign_pack(encounter), encounter)
+            _validate(pack)
+            self.content.update(map=pack['map'], encounter=pack['encounter'], enemies=pack['enemies'])
         self.levels, self.loadouts = levels, loadouts
 
     def new_run(self, name="M3开发试玩", templates=None, seed=None, *, campaign=False):
@@ -58,6 +66,8 @@ def main(argv=None):
     parser.add_argument('--boss-slice', action='store_true', help='独立两阶段Boss试玩，默认8级；战后11号可重新演练')
     parser.add_argument('--encounter', choices=tuple(Engine().campaign_content['nodes']), help='独立遭遇试玩，默认8级，战后11号可重新演练')
     parser.add_argument('--ui', choices=('auto', 'cards', 'plain'), default='auto', help='终端界面模式')
+    parser.add_argument('--tactical', action='store_true', help='开启铸场/书库/圣所战术实验机制')
+    parser.add_argument('--tactical-gear', action='store_true', help='为战士/游荡者/牧师自动配上三件实验装备，可与原版场景对照')
     parser.add_argument(
         "--equip",
         action="append",
@@ -73,7 +83,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if sum(bool(x) for x in (args.battle_slice, args.boss_slice, args.encounter)) > 1:
         parser.error('请选择一个独立试玩场景。')
-    if args.campaign and (args.level is not None or args.levels or args.equip or args.prepare or args.battle_slice or args.boss_slice or args.encounter):
+    if args.campaign and (args.level is not None or args.levels or args.equip or args.prepare or args.battle_slice or args.boss_slice or args.encounter or args.tactical or args.tactical_gear):
         parser.error('战役从1级起步，不能指定开发局等级、装备或法术准备。')
     try:
         levels = (
@@ -82,6 +92,12 @@ def main(argv=None):
             else [args.level or (8 if args.boss_slice or args.encounter else 5)] * 4
         )
         loadouts = []
+        if args.tactical_gear:
+            from core.playground import GEAR
+            for index, template in enumerate(args.classes.split(','), 1):
+                if template in GEAR:
+                    slot, item = GEAR[template]
+                    loadouts.append(dict(type='equip', actor=f'P{index}', slot=slot, item=item))
         for value in args.equip:
             actor, slot, item = value.split(":")
             loadouts.append(
@@ -101,7 +117,7 @@ def main(argv=None):
                     spells=spells.split(",") if spells else [],
                 )
             )
-        engine = Engine() if args.campaign else PlaygroundEngine(levels, loadouts, args.battle_slice, args.boss_slice, args.encounter)
+        engine = Engine() if args.campaign else PlaygroundEngine(levels, loadouts, args.battle_slice, args.boss_slice, args.encounter, args.tactical)
         # Validate before allocating any on-disk save.
         engine.new_run(templates=args.classes.split(","), seed=args.seed, campaign=args.campaign)
     except Exception as exc:

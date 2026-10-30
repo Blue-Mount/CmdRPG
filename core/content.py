@@ -305,7 +305,9 @@ def _validate(pack):
         _fail("map.landmarks", "duplicate landmark position")
 
     encounter = pack["encounter"]
-    _object(encounter, "encounter", {"name", "description", "party_spawns", "enemies"})
+    _object(encounter, "encounter", {"name", "description", "party_spawns", "enemies"}, {"tactical_scene"})
+    if 'tactical_scene' in encounter:
+        _enum(encounter['tactical_scene'], 'encounter.tactical_scene', {'foundry', 'archive', 'sanctum'})
     _text(encounter["name"], "encounter.name")
     _text(encounter["description"], "encounter.description")
     spawns = _cells(encounter["party_spawns"], "encounter.party_spawns")

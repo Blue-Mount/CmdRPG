@@ -13,6 +13,7 @@ from .campaign import CampaignMixin, load_campaign, COMMANDS as CAMPAIGN_COMMAND
 from .tactics import TacticsMixin, TACTICAL
 from .equipment import bonus as equipment_bonus
 from .battle_report import new_report, record as record_battle
+from .playground import PlaygroundMixin
 
 
 class GameError(Exception):
@@ -25,7 +26,7 @@ def modifier(score):
     return (score - 10) // 2
 
 
-class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
+class Engine(PlaygroundMixin, ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthMixin):
     def __init__(self, content=None):
         self.content = content if content is not None else load_content()
         self.content = deepcopy(self.content)
@@ -42,12 +43,16 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             self.content["classes"][cid] = dict(name=name, subclass=subclass, **{k: deepcopy(s[k]) for k in ("stats", "hp", "speed", "spell_stat", "abilities", "slots", "resources", "save_proficiencies")}, ac=10 + modifier(s["stats"]["dex"]), attack_stat="dex", weapon=s["equipment"]["main_hand"])
 
     def _check_version(self, state):
+        if state.get('playground') and state['playground'].get('version') != 1:
+            raise GameError('version_mismatch', '战术实验存档版本不受支持。')
         if state.get('campaign') and state['campaign'].get('version') != self.campaign_content['version']:
             raise GameError('version_mismatch', '战役版本不匹配，请使用对应版本服务。')
         if state.get('campaign') and (type(state['campaign'].get('edition', 1)) is not int or state['campaign'].get('edition', 1) not in (1, 2, 3)):
             raise GameError('version_mismatch', '战役路线版本不受支持。')
         if any(a.get("growth_version") not in (None,1) for a in state.get("actors",{}).values()):
             raise GameError("version_mismatch","成长存档版本不受支持，请使用对应版本服务。")
+        if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == ('0.9.0-tactical-lab', '0.9.0-tactical-lab', 1):
+            return
         old_content = '0.7.0-campaign' if state.get('campaign') else '0.7.0-expansion'
         if (state.get('content_version'), state.get('rules_version'), state.get('save_version')) == (old_content, '0.7.0-provisional', 1):
             return
@@ -155,6 +160,8 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                 else:
                     actor = state['actors'][aid]
                     actor['inventory'] = list(dict.fromkeys(v for v in actor['equipment'].values() if v))
+        self._init_playground(state)
+        self._stamp_version(state)
         initiatives = {actor_id: dice.die(state, 4) + modifier(a["stats"]["dex"]) for actor_id, a in state["actors"].items()}
         # Stable ties: party first, then higher Dexterity, then actor ID.
         state["turn_order"] = sorted(state["actors"], key=lambda aid: (-initiatives[aid], state["actors"][aid]["side"] != "party", -state["actors"][aid]["stats"]["dex"], aid))
@@ -214,6 +221,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             if not self._visible(state, actor):
                 continue
             result = {key: deepcopy(actor[key]) for key in common}
+            result['tactical_notes'] = self._playground_notes(state, actor)
             if actor["side"] == "party":
                 result.update({key: deepcopy(actor[key]) for key in ("resources", "slots", "concentration", "death_success", "death_failure", "temp_hp", "effects")})
                 result['resources'].pop('arcane_recovery',None)
@@ -274,6 +282,8 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                                    "cost": {"reaction": 1}, "targets": [mover["id"]], "warnings": [],
                                    "hit_probability": dice.hit_probability(bonus, mover["ac"], adv, dis, self._blessed(reactor))}}
             pending["preview"]["attack_roll"] = self._attack_roll_info(state, reactor, mover)
+            if self._has_trait(reactor, 'intercept') and 'shield' in PROF.get(reactor['template'], ()):
+                pending['preview']['warnings'].append('截击盾：命中使敌人本回合剩余移动归零；不阻止攻击。')
             if (raw.get("after") or {}).get("type") == "enemy_turn":
                 pending["preview"]["warnings"].append("反应结束后，敌人若仍能行动，会继续剩余移动与攻击。")
         return {
@@ -283,6 +293,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             "last_seen": [deepcopy(entry) for aid, entry in state.get("last_seen", {}).items() if not self._visible(state, state["actors"][aid])],
             "round": state["round"], "active": self._active(state), "party": party, "enemies": enemies,
             "map": deepcopy(state["map"]), "pending": pending, "recent_events": deepcopy(state["event_log"][-6:]),
+            "tactical_objects": deepcopy(state.get('playground', {}).get('objects', {})),
             "battle_summary": deepcopy(state.get("battle_summary", {})),
             "battle_report": deepcopy(state.get('battle_report')),
             "campaign": self._campaign_view(state),
@@ -448,6 +459,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                     effect=self._spell_scaling(actor, ability_id, int(rank)))
                     for rank in sorted(actor.get('max_slots', actor['slots']), key=int) if int(rank)>=ability['level']]
             entries.append(entry)
+        entries.extend(self._playground_menu(state, actor))
         return entries
 
     def options(self, state, command):
@@ -460,7 +472,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             raise GameError('automatic_recovery','胜利后已自动全恢复，无需短休。')
         keys = {"attack": {"type", "actor"}, "help": {"type", "actor"},
                 "move": {"type", "actor"}, "cast": {"type", "actor", "ability", "slot"},
-                "ability": {"type", "actor", "ability"}}
+                "ability": {"type", "actor", "ability"}, "withdraw": {"type", "actor"}}
         if kind not in keys or set(command) - keys[kind]:
             raise GameError("invalid_command", "菜单请求包含不支持的行动或参数。")
         actor_id = command.get("actor")
@@ -469,7 +481,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             raise GameError("unknown_actor", "未找到队员。")
         base = deepcopy(command)
         response = {"revision": state["revision"], "command": base, "entries": []}
-        if kind == "move":
+        if kind in ("move", "withdraw"):
             return self._move_options(state, actor, base, response)
         side, multi = ("enemy" if kind == "attack" else "party"), False
         if kind in ("cast", "ability"):
@@ -637,10 +649,26 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
         return "bless" in actor["effects"]
 
     def preview(self, state, command, *, _routes=None):
+        checked = self._preview(state, command, _routes=_routes)
+        if checked['command'].get('type') in ('attack', 'cast', 'ability'):
+            for aid in checked.get('targets', []):
+                target = state['actors'].get(aid)
+                if target and self._visible(state, target):
+                    checked['warnings'].extend(f"{aid}：{note}" for note in self._playground_notes(state, target))
+            actor = state['actors'].get(checked['command'].get('actor'))
+            if actor and self._aura(state, actor, 'ember'):
+                checked['warnings'].append('当前处于烈焰祭坛：武器命中额外2点原类型伤害；法术不加成。')
+            if actor and self._has_trait(actor, 'healing_ward') and checked['command'].get('ability') in ('healing_word', 'cure_wounds', 'mass_healing_word'):
+                checked['warnings'].append('守护指环：实际治疗其他队友后，给予下次正伤害-3守护，至施术者下回合开始；不叠加、不刷新。')
+        return checked
+
+    def _preview(self, state, command, *, _routes=None):
         self._check_version(state)
         if not isinstance(command, dict) or not isinstance(command.get("type"), str):
             raise GameError("invalid_command", "命令需要 type 字段。")
         kind = command["type"]
+        if kind in ('interact', 'withdraw'):
+            return self._playground_preview(state, command)
         if kind=='rest':
             raise GameError('automatic_recovery','胜利后已自动全恢复，无需短休。')
         if kind in ("cast", "ability") and isinstance(command.get("ability"), str) and command["ability"] in TACTICAL:
@@ -875,6 +903,9 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
     def _stamp_version(self, state):
         state.update(content_version=CAMPAIGN_VERSION if state.get('campaign') else CONTENT_VERSION,
                      rules_version=RULES_VERSION)
+        if state.get('playground') or any(self._has_trait(a, trait) for a in state['actors'].values()
+                                          for trait in ('intercept', 'withdraw', 'healing_ward')):
+            state.update(content_version='0.9.0-tactical-lab', rules_version='0.9.0-tactical-lab')
 
     def _execute(self, state, command):
         if isinstance(command, dict) and isinstance(command.get('type'), str) and command['type'] in CAMPAIGN_COMMANDS:
@@ -918,7 +949,9 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                         actor["resources"][resource] -= cost
                 if checked['cost']:
                     self._emit(work, 'resource', f"{actor['id']} 本次消耗：" + '、'.join(f'{key} -{value}' for key, value in checked['cost'].items()), cost=deepcopy(checked['cost']))
-                if kind == "attack":
+                if kind in ('interact', 'withdraw'):
+                    self._playground_action(work, actor, command, checked)
+                elif kind == "attack":
                     actor["attacked"] = True
                     if actor.get("extra_attacks",0)>0: actor["extra_attacks"]-=1
                     else: actor["extra_attacks"]=actor.get("extra_attack",0)
@@ -1053,9 +1086,17 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                     amount += sneak_amount
                     detail["sneak_attack"] = sneak_detail
                     attacker["sneak_used"] = True
+                    if self._has_trait(attacker, 'withdraw'):
+                        attacker['withdraw_ready'] = True
                     self._emit(state, "effect", f"{attacker['id']} 偷袭：额外{sneak}d6，与本次武器伤害一起结算。")
+            if weapon_attack and self._aura(state, attacker, 'ember'):
+                extra += 2
+                self._emit(state, 'effect', f"{attacker['id']} 烈焰祭坛：本次武器伤害+2。")
             detail["ability_modifier"] = extra
             self._damage(state, target, max(0, amount + extra), damage_type, "借机攻击" if reaction else "攻击", detail, critical, source_actor=attacker['id'])
+            if reaction and self._has_trait(attacker, 'intercept') and 'shield' in PROF.get(attacker['template'], ()) and self._alive(target):
+                target['budgets']['movement'] = 0
+                self._emit(state, 'equipment_trigger', f"{attacker['id']} 截击盾命中：{target['id']} 本回合剩余移动归零，仍可攻击。", trait='intercept')
             if weapon_attack and not reaction and 'divine_strike' in attacker.get('passives', []) and not attacker.get('divine_strike_used'):
                 attacker['divine_strike_used'] = True
                 if self._alive(target):
@@ -1118,6 +1159,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                 amount //= 2
             if damage_type in target.get("vulnerabilities", []):
                 amount *= 2
+        amount = self._playground_reduce(state, target, amount)
         temporary = min(target.get("temp_hp", 0), amount)
         target["temp_hp"] = target.get("temp_hp", 0) - temporary
         damage = amount - temporary
@@ -1169,6 +1211,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
         if target["hp"] == previous:
             return
         self._emit(state, "heal", f"{target['id']} 获得 {source} 治疗 {target['hp'] - previous} 点，生命 {target['hp']}/{target['max_hp']}。", **(detail or {}), rolled_healing=amount, actual_healing=target["hp"] - previous, source_actor=source_actor)
+        self._playground_heal(state, target, source_actor, source)
 
     def _death_status(self, state, actor):
         if actor["death_failure"] >= 3:
@@ -1180,6 +1223,7 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
             self._emit(state, "stable", f"{actor['id']} 死亡豁免成功三次，伤势稳定，仍需治疗。")
 
     def _start_actor(self, state, actor):
+        self._playground_start(state, actor)
         actor["conditions"] = [c for c in actor["conditions"] if c not in ("dodge", "disengaged")]
         actor["budgets"] = {"action": 1, "bonus": 2 if "fast_hands" in actor.get("passives", []) else 1, "reaction": 1, "movement": actor["speed"]}
         actor["attacked"] = False
@@ -1261,12 +1305,14 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                 state["active_group"].append(actor_id)
                 if "dead" not in state["actors"][actor_id]["conditions"]:
                     self._start_actor(state, state["actors"][actor_id])
+                else:
+                    self._playground_start(state, state['actors'][actor_id])
             if side == "party" and self._active(state):
                 self._emit(state, "turn", f"可操作：{', '.join(self._active(state))}；先攻相邻的队员可以交错行动。")
 
     def _continue_move(self, state, mover, remaining, handled=None, after=None):
         handled = list(handled or [])
-        while remaining and self._alive(mover) and state["phase"] == "combat":
+        while remaining and self._alive(mover) and state["phase"] == "combat" and mover['budgets']['movement'] > 0:
             destination = remaining[0]
             occupants = [a for a in state["actors"].values() if a["id"] != mover["id"] and a["position"] == destination and "dead" not in a["conditions"]]
             if occupants:
@@ -1309,14 +1355,8 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
                 self._emit(state, "lost_sight", f"{mover['id']} 离开视线。")
             if destination in state["map"].get("hazards", {}):
                 hazard = state["map"]["hazards"][destination]
-                # Hidden movement and its consequences cannot leak coordinates.
-                if now_visible:
-                    self._damage(state, mover, hazard["damage"], "fire", hazard["description"])
-                else:
-                    mover["hp"] = max(0, mover["hp"] - hazard["damage"])
-                    if mover["hp"] == 0:
-                        mover["conditions"] = ["dead"]
-                        mover["ended"] = True
+                # _emit filters unseen subjects; resolve resistances/auras equally.
+                self._damage(state, mover, hazard["damage"], "fire", hazard["description"])
             remaining = remaining[1:]
             handled = []
             self._outcome(state)
@@ -1353,6 +1393,8 @@ class Engine(ExpansionMixin, AdvancedMixin, TacticsMixin, CampaignMixin, GrowthM
         return [a for a in state["actors"].values() if a["side"] == "party" and self._alive(a) and spatial.distance(state["map"], enemy["position"], a["position"]) <= 18 and spatial.line_of_sight(state["map"], enemy["position"], a["position"])]
 
     def _enemy_turn(self, state, enemy):
+        if self._guard_turn(state, enemy):
+            return
         if self._support_turn(state, enemy):
             return
         targets = self._enemy_targets(state, enemy)

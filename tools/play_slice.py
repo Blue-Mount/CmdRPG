@@ -59,13 +59,15 @@ def move_for_attack(engine, state, view, actor, enemies, attack_range):
     return command if legal(engine, state, command) else None
 
 
-def choose(engine, state, *, support=False):
+def choose(engine, state, *, support=False, prioritize_support=False):
     view = engine.view(state)
     if view['pending']:
         return ('reaction', 'accept')
     actor = next(a for a in view['party'] if a['id'] == view['active'][0])
     aid = actor['id']
     enemies = sorted([a for a in view['enemies'] if a['hp'] > 0], key=lambda a: (a['hp'], a['id']))
+    if prioritize_support:
+        enemies.sort(key=lambda a: not bool(a.get('support')))
     abilities = {a['id']: a for a in actor['abilities']}
     commands = []
     if 'healing_word' in abilities:
